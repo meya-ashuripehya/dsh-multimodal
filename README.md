@@ -19,7 +19,7 @@ DSH 多模态插件的最小骨架。现在只有两样东西：
 
 ```powershell
 npm install
-npm run build   # 需要解包的 DSH node_modules，默认 %TEMP%\dsh-asar\node_modules，可用 DSH_NODE_MODULES 覆盖
+npm run build   # 不需要安装 DSH；defineTool 已拷进 vendor/dsh-tools（DSH 升级后可 npm run vendor:sync）
 npm run smoke   # 假 ctx 冒烟，生成 lib/smoke.png
 ```
 

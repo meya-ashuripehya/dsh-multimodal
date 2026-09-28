@@ -30,7 +30,8 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "vendor:sync": "node scripts/vendor-sync.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
