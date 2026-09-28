@@ -1,23 +1,26 @@
 /**
- * dsh-multimodal — 宿主半边（雏形）。
+ * dsh-workbench — 工作组件插件的宿主半边。
  *
- * 目前只做两件事：
- *  1. 设置：用 ctx.settings 注册 `dsh-multimodal` 命名空间（没有 settings 服务时退回组合配置），
- *     并经 webServer 暴露 /dsh-multimodal/api/settings 给前端设置页读写。
- *  2. 出图：注册 `mm_image_demo` 工具，在 Node 端生成一张演示 PNG，
- *     按原生 read_image 的做法经 attachments.saveImage 存成持久图片，结果里带 image block。
+ *  1. 工作组件：Office / Blender / Unity 等控制其他工作软件的 MCP 服务器，统一以 dsh-mcp-client
+ *     子插件挂载（定义与运行时见 ./components.mjs），开关和路径在「工作组件」设置页里，改动后立即重挂。
+ *  2. 设置：用 ctx.settings 注册 `dsh-workbench` 命名空间（没有 settings 服务时退回组合配置），
+ *     并经 webServer 暴露 /dsh-workbench/api/settings、/dsh-workbench/api/components。
+ *  3. 出图演示：`mm_image_demo` 在 Node 端生成演示 PNG，经 attachments.saveImage 存成持久图片，结果里带 image block。
  *
- * 后续的搜索 / 路线 / 真实生图都挂在这里，前端卡片在 lib/client.js。
+ * 前端设置页与工具卡片在 lib/client.js。
  */
 import z from 'schemastery'
 import { defineTool } from '@dsh/define-tool'
 import { renderDemoImage } from './png.mjs'
+import { COMPONENTS, componentById, createComponentManager } from './components.mjs'
 
-export const name = 'dsh-multimodal'
+export { COMPONENTS }
+
+export const name = 'dsh-workbench'
 export const inject = ['tools']
 
-const NAMESPACE = 'dsh-multimodal'
-const API_PREFIX = '/dsh-multimodal/api'
+const NAMESPACE = 'dsh-workbench'
+const API_PREFIX = '/dsh-workbench/api'
 const BODY_LIMIT = 16 * 1024
 
 export const SettingsSchema = z.object({
@@ -26,7 +29,20 @@ export const SettingsSchema = z.object({
   imageEndpoint: z.string().default('').description('生图接口地址（openai-compatible 时使用，雏形阶段未接入）。'),
   imageModel: z.string().default('').description('生图模型名（雏形阶段未接入）。'),
   defaultSize: z.natural().min(64).max(1024).default(384).description('演示图默认边长（px）。'),
+  uvPath: z.string().default('').description('uv 可执行文件（uvx 取同目录）；留空时自动查找 WinGet 安装的 uv，再退回 PATH。'),
+  officeEnabled: z.boolean().default(true).description('启动 OfficeMCP（仅 Windows，COM 控制 Word / Excel / PowerPoint）。'),
+  officeRepo: z.string().default('').description('OfficeMCP 仓库目录；留空时用插件目录旁边的 officemcp。'),
+  officeFolder: z.string().default('').description('OfficeMCP 的工作根目录；留空时用它自己的默认值 D:\\@OfficeMCP。'),
+  blenderEnabled: z.boolean().default(true).description('启动 Blender MCP。'),
+  blenderPackage: z.string().default('mcp-for-blender').description('uvx 运行的 Blender MCP 包名。'),
+  unityEnabled: z.boolean().default(true).description('启动 Unity MCP。'),
+  unityPackage: z.string().default('mcpforunityserver').description('uvx --from 使用的 Unity MCP 包名。'),
 })
+
+/** 兼容旧导出：Office 组件的启动方案（冒烟脚本在用）。 */
+export function officeLaunchPlan(cfg) {
+  return componentById('office').launch(cfg)
+}
 
 export const Config = SettingsSchema
 
@@ -82,17 +98,22 @@ export function apply(ctx, config) {
   // ── 设置：优先 ctx.settings（可持久、可热改），否则用组合配置 ──
   let current = SettingsSchema(config ?? {})
   let scope = null
+  const components = createComponentManager(ctx, () => current)
   const settings = typeof ctx.get === 'function' ? ctx.get('settings') : undefined
   if (settings && typeof settings.register === 'function') {
     try {
       scope = settings.register(NAMESPACE, SettingsSchema, { base: config ?? {}, applies: 'live' })
       current = scope.get()
-      scope.watch?.((next) => { current = next })
+      scope.watch?.((next) => { current = next; components.sync() })
     } catch (error) {
-      ctx.logger?.warn?.('dsh-multimodal: settings.register failed, fallback to composition config', error)
+      ctx.logger?.warn?.('dsh-workbench: settings.register failed, fallback to composition config', error)
       scope = null
     }
   }
+
+  // ── 工作组件：各自 fork 一个 dsh-mcp-client 子插件（不写进 profile，随本插件卸载）──
+  components.sync()
+  ctx.effect?.(() => () => components.dispose(), 'dsh-workbench: components')
 
   // ── 设置页 API（同源 fetch）──
   ctx.inject(['webServer'], (webCtx) => {
@@ -116,7 +137,11 @@ export function apply(ctx, config) {
             } else {
               current = next
             }
+            await components.sync()
             return sendJson(res, 200, { ok: true, persisted: scope !== null, value: current })
+          }
+          if (sub === '/components' && req.method === 'GET') {
+            return sendJson(res, 200, { ok: true, components: components.list() })
           }
           if (sub === '/health') return sendJson(res, 200, { ok: true, name, persisted: scope !== null })
           return sendJson(res, 404, { ok: false, error: 'not found' })
@@ -124,7 +149,7 @@ export function apply(ctx, config) {
           return sendJson(res, 400, { ok: false, error: String(error?.message ?? error) })
         }
       },
-    }), 'dsh-multimodal: settings api')
+    }), 'dsh-workbench: settings api')
   })
 
   // ── 出图测试工具：只在 attachments 服务存在时注册（与原生 read_image 同一门控）──

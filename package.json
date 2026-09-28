@@ -1,7 +1,7 @@
 {
-  "name": "dsh-multimodal",
-  "version": "0.1.0",
-  "description": "DSH 多模态插件雏形：设置页（settings.section + ctx.settings 命名空间）与图片输出测试工具 mm_image_demo（attachments 持久图片 + tool.call.toolview 卡片）。",
+  "name": "dsh-workbench",
+  "version": "0.2.0",
+  "description": "DSH 工作组件插件：统一挂载并管理控制其他工作软件的 MCP 服务器（Office / Blender / Unity），带「工作组件」设置页；另含出图演示工具 mm_image_demo。",
   "private": true,
   "type": "module",
   "main": "lib/index.mjs",
@@ -14,7 +14,8 @@
   "files": [
     "lib/index.mjs",
     "lib/client.js",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "office/launch.py"
   ],
   "dsh": {
     "bundle": {
@@ -31,7 +32,8 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "vendor:sync": "node scripts/vendor-sync.mjs"
+    "vendor:sync": "node scripts/vendor-sync.mjs",
+    "smoke:office": "node scripts/office-smoke.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
