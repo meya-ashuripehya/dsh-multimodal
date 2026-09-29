@@ -26,11 +26,11 @@ DSH 设置里的「工作组件」页：首页是功能列表（按分组），�
 | --- | --- | --- | --- |
 | 多模态 | 出图演示 | 演示图边长 / openai-compatible · 未接入 | 出图提供方、接口、模型、默认边长 |
 | 工作组件 | Office / Blender / Unity / Figma / Photoshop / Chrome / Godot（徽标「仓库自带」） | 已连接 / 已启动 / 未启动 / 未安装 / 出错 / 安装中… | 运行与连接说明、下载安装 / 卸载、「启用」、组件专属配置 |
-| 本地兼容 | `local-components/<id>/` 下的用户模块（徽标「本地」） | 同上 | 与仓库自带同接口；管理页可复制 PR 清单 / 打开 Compare（默认不自动 push） |
+| 本地兼容 | `local-components/<id>/` 下的用户模块（徽标「本地」；可用 env `DSH_WORKBENCH_LOCAL_COMPONENTS_DIR`） | 同上 | 与仓库自带同接口；详情页「启用」；管理页复制 PR 清单 / 打开 Compare（**不**自动 commit / push / `gh pr create`） |
 | 通用 | uv / Node.js / 下载代理 | 可用 / 未安装 / 已设置… | 运行时安装与代理等共用项 |
-| 基础工具 | 添加工作组件 | 提示词工具 | 提示词引导 AI 写入 `local-components/`（不装进 tools/）；之后可提交 PR。 |
+| 基础工具 | 添加工作组件 | 提示词工具 | Token 声明 + 可复制 AI 提示词：写成**本地**模块（不装进 `tools/`）。选型**功能最全优先**；应补可配置/必填参数（中文 label）；本地阶段 `keys` + `launch`/`spec` 硬编码默认，拟议 schema 写注释；自定义键未进 schema 前不持久化。模块就位后重启 DSH，再在设置页下载安装。 |
 
-管理页「‹ 返回」或 Esc 回列表；每页各自「保存」；「启用」拨动后立即单独保存。安装进行中列表与管理页约每 1.5 秒刷新；有组件已启动时约每 5 秒刷新以跟上「已连接」。设置命名空间：`dsh-workbench`。
+有上游仓库的功能在标题旁显示蓝色网址文字（新标签打开）。管理页「‹ 返回」或 Esc 回列表；每页各自「保存」；「启用」拨动后立即单独保存（本地组件同样有启用开关，键 `<id>Enabled`，缺省开）。安装进行中列表与管理页约每 1.5 秒刷新；有组件已启动时约每 5 秒刷新以跟上「已连接」。设置命名空间：`dsh-workbench`。
 
 ### 「已连接」
 
@@ -93,7 +93,7 @@ local-components/      用户本地兼容源码（gitignore；可用 DSH_WORKBEN
 
 另有 `/dsh-workbench/assets/*` 提供插件 `assets/` 静态资源。
 
-**新增组件**：先写 `local-components/<id>/`（设置页「添加工作组件」），再按 [docs/component-module.md](./docs/component-module.md) 合入 `src/components/` 并开 PR。测试可用 `DSH_WORKBENCH_LOCAL_COMPONENTS_DIR` 指向桩目录。
+**新增组件**：先写 `local-components/<id>/`（设置页「添加工作组件」提示词），再按 [docs/component-module.md](./docs/component-module.md) 合入 `src/components/` 并开 PR。本地模块由 registry 自动发现，与 bundled **同 id 时 bundled 优先**。宿主用 `RuntimeSettingsSchema` 合并本地 `*Enabled`（见 `src/index.mjs`）。运行时下载仍只落在 `tools/`（gitignore），仓库不附带已下载的 MCP 树。本机可有 gitignore 下的示例（如 `local-components/docker/`），文档只记约定，不强制提交该目录。测试可用 `DSH_WORKBENCH_LOCAL_COMPONENTS_DIR` 指向桩目录。
 
 ## 构建与测试
 

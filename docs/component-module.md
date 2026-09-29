@@ -133,15 +133,21 @@ uv、Node.js 在 `manager.list()` 里以 `kind: 'prerequisite'` 出现，**不�
 - 默认放在插件根下 `local-components/`，和 `src/components/` 结构对称，方便对照与拷贝进 PR。
 - 可用环境变量 `DSH_WORKBENCH_LOCAL_COMPONENTS_DIR` 改到持久位置（例如 `%APPDATA%\dsh-workbench\local-components`），以免插件目录被替换时丢掉本地模块。
 
-**不要**在「添加工作组件」AI 流程里自动往 `tools/` 下载 MCP；本地 = 磁盘上的源码模块，安装仍由用户在设置页触发。
+**不要**在「添加工作组件」AI 流程里自动往 `tools/` 下载 MCP；本地 = 磁盘上的源码模块，安装仍由用户在设置页触发。运行时下载只落在 `tools/`（gitignore）；**仓库不附带**已下载的 MCP 树。
 
 ### 提交 PR（本地 → 仓库）
 
-设置页本地组件管理页提供「复制 PR 清单」「打开 Compare」。安全默认：
+设置页本地组件管理页提供「复制 PR 清单」「打开 Compare」。**安全默认（不会代用户动 git）**：
 
-- 复制清单 + `git` / `gh` 命令模板，打开 https://github.com/meya-ashuripehya/dsh-multimodal/compare
-- **不**自动 commit / push / force-push；**不**在未确认时跑 `gh pr create`
-- API：`GET /dsh-workbench/api/components/<id>/contribute`
+- [ ] 自检模块导出齐全（`id` / `meta` / `app` / `probe` / `component`）
+- [ ] `launch` 关闭判断用 `=== false`；自定义参数有中文说明与拟议 schema 注释
+- [ ] 复制 PR 清单 + `git` / `gh` 命令模板
+- [ ] 打开 https://github.com/meya-ashuripehya/dsh-multimodal/compare
+- [ ] 由用户本人审阅后自行 commit / push / 开 PR
+
+**禁止**插件侧自动：commit、push、force-push、未确认时的 `gh pr create`。
+
+API：`GET /dsh-workbench/api/components/<id>/contribute`（返回清单、文件列表、compare URL、命令模板）。
 
 合并进仓库时：把 `local-components/<id>/` 拷到 `src/components/<id>/`，再按下面「合入仓库」清单改 registry / schema / client。
 
@@ -149,12 +155,28 @@ uv、Node.js 在 `manager.list()` 里以 `kind: 'prerequisite'` 出现，**不�
 
 ## 新增组件检查清单
 
+### 设置页提示词（clipboard；给 AI 用）
+
+`lib/client.js` 的 `buildAddComponentPrompt()` 会把**完整模块约定内嵌**进复制文本（落盘路径、各导出字段与 chrome/office 例、`tools/<id>/` 不下载、本地 drop-in 发现、设置页无需手改 FEATURES/ICONS）。改约定时请同步更新该函数，避免 AI 再去读本文件或其它源码（省 token）。UI 上的 Token 声明常量 `ADD_COMPONENT_TOKEN_WARN`（含作者实测参考用量）与提示词正文分开，勿混进 prompt。
+
+提示词原则（与 UI 文案保持一致）：
+
+1. **选型**：搜索 MCP / 自动化方案时对比能力范围、协议、维护、许可证；**功能最全优先**，其次维护与许可证。
+2. **落盘**：只写 `local-components/<id>/index.mjs`；**不要**改 `src/components/` / `registry.mjs`；**不要**自动下载进 `tools/`。
+3. **参数**：AI **应**为组件增加可配置或必填参数（host、package、path、token 占位等），给出清晰**中文** label / 帮助文案；优先补上有用参数而不是省略。
+4. **本地阶段配置**：在 `keys` 中声明；在 `launch()` / `spec()` 里硬编码默认（如 `cfg.xxxPackage || 'upstream-pkg'`）；在模块注释与 `meta.summary` / `note` 说明；若也需要 UI 字段，在注释写出拟议的 `SettingsSchema` / `INPUT_FIELDS` 形状（含中文 label / desc），供后续 PR。
+5. **持久化**：未进 schema 的自定义键（除宿主已合并保留的本地 `*Enabled` 外）**不会**进持久化 `cfg`；此时无法在 UI 改这些键。
+6. **启用键**：`<id>Enabled`；详情页已有开关；`launch` 仅 `cfg.<id>Enabled === false` 时关闭（缺键 = 启用）。
+7. **就位后**：用户可重启 DSH，再在设置页「下载安装」；本提示词**不要** commit / push / 开 PR。
+
 ### A. 先做本地兼容（推荐；设置页「添加工作组件」提示词走这条）
 
 1. 建目录 `local-components/<id>/`，实现 `index.mjs`（`meta` / `app` / `probe` / `component`）。
 2. 重启 / 重载插件后应出现在设置页「本地兼容」；**不要**改 `registry.mjs` 静态表。
 3. **不要**把 MCP 下载进 `tools/`（除非用户在 UI 点「下载安装」）。
-4. 满意后用管理页「贡献到仓库」复制清单，开 PR。
+4. 详情页已有「启用」开关（`<id>Enabled`，缺省开；仅 `=== false` 关）。`launch` 用 `cfg.<id>Enabled === false` 才返回 OFF；**不要** `if (!cfg.<id>Enabled)`。其它自定义键仍无 UI，须待 schema / INPUT_FIELDS；`spec` / 默认包名可在模块内硬编码。
+5. `probe`：守护进程 / 远程 / WSL 等可先探测 MCP/工具，勿在无 Desktop 进程时一律 `noAppFor`。
+6. 满意后用管理页「贡献到仓库」：复制清单 + 打开 GitHub Compare；**不**自动 commit / push / `gh pr create`（见上「提交 PR」）。
 
 ### B. 合入仓库（bundled）
 
@@ -165,6 +187,26 @@ uv、Node.js 在 `manager.list()` 里以 `kind: 'prerequisite'` 出现，**不�
 5. 若有「装进项目」类动作：实现 `installAddon`。
 6. `npm run build`；按需 smoke。
 7. 更新本文件与 README 组件表；删除或停止使用对应的 `local-components/<id>/`。
+
+---
+
+## 本地启用键与 RuntimeSettingsSchema
+
+本地组件详情页有「启用」开关（与 bundled 相同 UI），键名 `<id>Enabled`，缺省开启。
+
+- 前端：`lib/client.js` 的 `ensureLocalEnabledField(id)` 动态注册 switch；`fill` / 详情渲染缺键时按 **ON**。
+- 后端：`src/index.mjs` 在加载时用 `localEnabledSchemaExtras()` 收集当前 local 的 `*Enabled`，得到 **`RuntimeSettingsSchema`**（`SettingsSchema` ∩ 本地启用键）。`Config` / `settings.register` / `POST /settings` 走该 runtime schema。
+- `pickLocalEnabled`：Cordis `settings.register` 可能丢掉未知键时，把本地 `*Enabled` 布尔值合并回 `current`，避免开关写不进或读丢。
+- `launch` / manager：仅 `cfg.<id>Enabled === false` 视为关闭；**不要** `if (!cfg.<id>Enabled)`。
+
+## 本地示例模式（Docker，不强制进库）
+
+本机可在 gitignore 的 `local-components/docker/` 放一份示例模块（上游如 [mcp-server-docker](https://github.com/ckreiling/mcp-server-docker)），用于验证自动发现、启用开关、`keys` + `spec`/`launch` 硬编码默认（如 `dockerPackage` / `dockerHost`）。**仓库不要求提交 `local-components/`**；文档只描述模式：
+
+1. `local-components/<id>/index.mjs` 实现与 bundled 相同的导出。
+2. `keys` 含 `<id>Enabled` 与可选参数键；`spec`/`launch` 用 `cfg.xxx || 默认`。
+3. 重启 / 重载后出现在「本地兼容」；详情页可启用、下载安装（产物进 `tools/<id>/`）、贡献清单。
+4. 满意后再按「合入仓库」清单拷进 `src/components/`。
 
 ---
 

@@ -89,7 +89,45 @@ export function officeLaunchPlan(cfg) {
   return componentById('office').launch(cfg)
 }
 
-export const Config = SettingsSchema
+/** Local components' `<id>Enabled` keys (discovered at load). Default ON — align with launch `=== false` / manager. */
+function localEnabledSchemaExtras() {
+  const shape = {}
+  for (const c of COMPONENTS) {
+    if (c.moduleSource !== 'local') continue
+    const key = `${c.id}Enabled`
+    shape[key] = z.boolean().default(true).description(`启用本地组件 ${c.label || c.id}`)
+  }
+  return shape
+}
+
+const _localEnabledShape = localEnabledSchemaExtras()
+/** Runtime schema: base SettingsSchema ∩ local *Enabled. Prefer this for register / API validate. */
+export const RuntimeSettingsSchema = Object.keys(_localEnabledShape).length
+  ? z.intersect([SettingsSchema, z.object(_localEnabledShape)])
+  : SettingsSchema
+
+/** Keep local `*Enabled` booleans that Cordis settings.register may drop from unknown keys. */
+function pickLocalEnabled(from) {
+  const out = {}
+  if (!from || typeof from !== 'object') return out
+  for (const c of COMPONENTS) {
+    if (c.moduleSource !== 'local') continue
+    const key = `${c.id}Enabled`
+    if (Object.prototype.hasOwnProperty.call(from, key) && typeof from[key] === 'boolean') out[key] = from[key]
+  }
+  // Also accept any *Enabled boolean for ids that look like local comps already in from/current
+  for (const [k, v] of Object.entries(from)) {
+    if (!k.endsWith('Enabled') || typeof v !== 'boolean') continue
+    if (Object.prototype.hasOwnProperty.call(out, k)) continue
+    const id = k.slice(0, -'Enabled'.length)
+    if (!id || componentById(id)?.moduleSource !== 'local') continue
+    out[k] = v
+  }
+  return out
+}
+
+export const Config = RuntimeSettingsSchema
+
 
 const IMAGE_VALUE_SCHEMA = {
   type: 'object',
@@ -158,13 +196,13 @@ function sendAsset(res, reqPath) {
 
 export function apply(ctx, config) {
   // ── 设置：优先 ctx.settings（可持久、可热改），否则用组合配置 ──
-  let current = SettingsSchema(config ?? {})
+  let current = RuntimeSettingsSchema(config ?? {})
   let scope = null
   const components = createComponentManager(ctx, () => current)
   const settings = typeof ctx.get === 'function' ? ctx.get('settings') : undefined
   if (settings && typeof settings.register === 'function') {
     try {
-      scope = settings.register(NAMESPACE, SettingsSchema, { base: config ?? {}, applies: 'live' })
+      scope = settings.register(NAMESPACE, RuntimeSettingsSchema, { base: config ?? {}, applies: 'live' })
       current = scope.get()
       scope.watch?.((next) => { current = next; components.sync() })
     } catch (error) {
@@ -193,12 +231,13 @@ export function apply(ctx, config) {
           if (sub === '/settings' && req.method === 'POST') {
             if (req.headers['sec-fetch-site'] === 'cross-site') return sendJson(res, 403, { ok: false, error: 'cross-site request refused' })
             const patch = JSON.parse(await readBody(req) || '{}')
-            const next = SettingsSchema({ ...current, ...patch }) // 先按 schema 校验
+            const localEnabled = pickLocalEnabled({ ...current, ...patch })
+            const next = RuntimeSettingsSchema({ ...current, ...patch, ...localEnabled })
             if (scope) {
-              await scope.update(patch)
-              current = scope.get()
+              await scope.update({ ...patch, ...localEnabled })
+              current = { ...scope.get(), ...pickLocalEnabled({ ...scope.get(), ...localEnabled }) }
             } else {
-              current = next
+              current = { ...next, ...localEnabled }
             }
             await components.sync()
             return sendJson(res, 200, { ok: true, persisted: scope !== null, value: current })
