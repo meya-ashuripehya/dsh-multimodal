@@ -15,7 +15,8 @@
     "lib/index.mjs",
     "lib/client.js",
     "cordis.patch.yml",
-    "office/launch.py"
+    "office/launch.py",
+    "assets/figma-import-plugin.png"
   ],
   "dsh": {
     "bundle": {
@@ -33,7 +34,9 @@
     "build": "node scripts/build.mjs",
     "smoke": "node scripts/smoke.mjs",
     "vendor:sync": "node scripts/vendor-sync.mjs",
-    "smoke:office": "node scripts/office-smoke.mjs"
+    "smoke:office": "node scripts/office-smoke.mjs",
+    "smoke:tools": "node scripts/tools-smoke.mjs",
+    "smoke:connect": "node scripts/connect-smoke.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

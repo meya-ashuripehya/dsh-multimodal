@@ -1,5 +1,6 @@
 // OfficeMCP 冒烟：按插件的启动方案拉起 OfficeMCP，走一遍 initialize、tools/list 和
 // AvailableApps（只查注册表，不会打开 Office），并检查标准输出里没有非 JSON 的行。
+// 启动方案优先用插件 tools/officemcp（「下载安装」的结果）；加 --expect-managed 时不是它就算失败。
 import { spawn } from 'node:child_process'
 import { SettingsSchema, officeLaunchPlan } from '../lib/index.mjs'
 
@@ -9,7 +10,12 @@ if (!plan.ok) {
   process.exit(1)
 }
 const { command, args, cwd, env } = plan.config
+console.log('source:', plan.source, '| cwd:', cwd)
 console.log('spawn:', command, args.join(' '))
+if (process.argv.includes('--expect-managed') && plan.source !== 'managed') {
+  console.error('office-smoke: 没有用插件 tools/officemcp 里的安装（先跑 npm run smoke:tools 或在设置页下载安装）')
+  process.exit(1)
+}
 const child = spawn(command, args, { cwd, env: { ...process.env, ...env }, stdio: ['pipe', 'pipe', 'inherit'] })
 
 let buf = ''
