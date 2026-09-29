@@ -18,12 +18,12 @@
 import z from 'schemastery'
 import { defineTool } from '@dsh/define-tool'
 import { renderDemoImage } from './png.mjs'
-import { COMPONENTS, componentById, createComponentManager } from './components.mjs'
+import { COMPONENTS, componentById, createComponentManager, contributeInfo, localComponentsDir, CONTRIBUTE_COMPARE_URL } from './components.mjs'
 import { dirSize, killProcessesUnder, managedPaths, pluginRoot, toolsDir } from './tools.mjs'
 import { createReadStream, existsSync, statSync } from 'node:fs'
 import { extname, join, relative, resolve, sep } from 'node:path'
 
-export { COMPONENTS, componentById, createComponentManager, dirSize, killProcessesUnder, managedPaths, toolsDir }
+export { COMPONENTS, componentById, createComponentManager, contributeInfo, localComponentsDir, CONTRIBUTE_COMPARE_URL, dirSize, killProcessesUnder, managedPaths, toolsDir }
 
 export const name = 'dsh-workbench'
 export const inject = ['tools']
@@ -206,7 +206,13 @@ export function apply(ctx, config) {
           if (sub === '/components' && req.method === 'GET') {
             // 顺带探测已启动组件的连接（有缓存、不并发）；最多等 1.5 秒，没探完的下次请求再带上。
             await components.refreshConnections({ waitMs: 1500 })
-            return sendJson(res, 200, { ok: true, toolsDir: toolsDir(), components: components.list() })
+            return sendJson(res, 200, {
+              ok: true,
+              toolsDir: toolsDir(),
+              localComponentsDir: localComponentsDir(),
+              contributeCompareUrl: CONTRIBUTE_COMPARE_URL,
+              components: components.list(),
+            })
           }
           const addon = /^\/components\/([\w-]+)\/addon$/.exec(sub)
           if (addon && req.method === 'POST') {
@@ -224,6 +230,12 @@ export function apply(ctx, config) {
               return sendJson(res, 202, { ok: true, component })
             }
             return sendJson(res, 200, { ok: true, component: await components.uninstall(id) })
+          }
+          const contrib = /^\/components\/([\w-]+)\/contribute$/.exec(sub)
+          if (contrib && req.method === 'GET') {
+            const info = components.contribute(contrib[1])
+            if (!info) return sendJson(res, 404, { ok: false, error: `${contrib[1]} 不是本地组件，或没有贡献信息` })
+            return sendJson(res, 200, { ok: true, ...info })
           }
           if (sub === '/health') return sendJson(res, 200, { ok: true, name, persisted: scope !== null })
           return sendJson(res, 404, { ok: false, error: 'not found' })

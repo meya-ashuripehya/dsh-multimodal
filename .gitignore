@@ -3,3 +3,8 @@ lib/index.mjs
 lib/index.mjs.map
 lib/smoke.png
 tools/
+local-components/
+
+lib/.localcomp-smoke-dir/
+lib/localcomp-smoke.json
+

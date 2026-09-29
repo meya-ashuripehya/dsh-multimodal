@@ -45,6 +45,16 @@ export function toolsDir() {
   return process.env.DSH_WORKBENCH_TOOLS_DIR ? resolve(process.env.DSH_WORKBENCH_TOOLS_DIR) : join(pluginRoot(), 'tools')
 }
 
+/**
+ * 用户本地兼容组件源码目录（ComponentModule，非 tools/ 安装产物）。
+ * 默认 <pluginRoot>/local-components/；可用 DSH_WORKBENCH_LOCAL_COMPONENTS_DIR 覆盖（例如指到 %APPDATA%）。
+ */
+export function localComponentsDir() {
+  return process.env.DSH_WORKBENCH_LOCAL_COMPONENTS_DIR
+    ? resolve(process.env.DSH_WORKBENCH_LOCAL_COMPONENTS_DIR)
+    : join(pluginRoot(), 'local-components')
+}
+
 export function venvBin(venv, name) {
   return IS_WIN ? join(venv, 'Scripts', name + EXE) : join(venv, 'bin', name)
 }

@@ -36,7 +36,8 @@
     "vendor:sync": "node scripts/vendor-sync.mjs",
     "smoke:office": "node scripts/office-smoke.mjs",
     "smoke:tools": "node scripts/tools-smoke.mjs",
-    "smoke:connect": "node scripts/connect-smoke.mjs"
+    "smoke:connect": "node scripts/connect-smoke.mjs",
+    "smoke:local": "node scripts/localcomp-smoke.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
