@@ -17,8 +17,10 @@ DSH 插件，用来统一挂载和管理「控制其他工作软件」的 MCP �
 | GitHub | [GitHub MCP](https://github.com/github/github-mcp-server)（托管 HTTP） | `mcp__github__` | PAT：设置 `githubToken` 或环境变量 `GITHUB_MCP_PAT` |
 | ComfyUI | [comfy-mcp](https://github.com/Comfy-Org/comfy-mcp)（PyPI） | `mcp__comfyui__` | 本机 ComfyUI / comfy-cli |
 | Godot | [godot-ai](https://github.com/hi-godot/godot-ai)（PyPI，`godot-ai attach`） | `mcp__godot__` | Godot 4.7+ 编辑器开着项目，且项目启用了同版本 Godot AI 插件 |
+| FFmpeg | [Kinocut](https://github.com/KyaniteLabs/kinocut)（PyPI `kinocut`，原 mcp-video） | `mcp__ffmpeg__` | 本机已安装 ffmpeg/ffprobe（PATH 或设置路径） |
+| Obsidian | [obsidian-mcp-server](https://github.com/cyanheads/obsidian-mcp-server)（npm） | `mcp__obsidian__` | Obsidian 开着 + 社区插件 Local REST API + API 密钥 |
 
-组件依赖的运行时（uv + Python，或 Node.js）与各上游 MCP 包，都可以在设置页「下载安装」到插件自己的 `tools/` 目录。Figma / Photoshop / Chrome / Godot 默认关闭，装好后在管理页打开「启用」。具体安装、桥接、端口与项目侧配置都在设置 UI 里完成，本 README 不重复操作步骤。
+组件依赖的运行时（uv + Python，或 Node.js）与各上游 MCP 包，都可以在设置页「下载安装」到插件自己的 `tools/` 目录。Figma / Photoshop / Chrome / Godot / FFmpeg / Obsidian 默认关闭，装好后在管理页打开「启用」。具体安装、桥接、端口与项目侧配置都在设置 UI 里完成，本 README 不重复操作步骤。
 
 计划加入：TRIX-GAMEBOT。
 
@@ -31,7 +33,7 @@ DSH 设置里的「工作组件」页：首页是功能列表（按分组），�
 | 分组 | 功能 | 列表状态（示意） | 管理页要点 |
 | --- | --- | --- | --- |
 | 多模态 | 出图演示 | 演示图边长 / openai-compatible · 未接入 | 出图提供方、接口、模型、默认边长 |
-| 工作组件 | Office / Blender / Unity / Figma / Photoshop / Chrome / Godot / Windows / Notion / Cloudflare / Cloudflare Docs / GitHub / ComfyUI（徽标「仓库自带」） | 已连接 / 已启动 / 未启动 / 未安装 / 出错 / 安装中… | 运行与连接说明、下载安装 / 卸载、「启用」、组件专属配置 |
+| 工作组件 | Office / Blender / Unity / Figma / Photoshop / Chrome / Godot / Windows / Notion / Cloudflare / Cloudflare Docs / GitHub / ComfyUI / FFmpeg / Obsidian（徽标「仓库自带」） | 已连接 / 已启用 / 未启用 / 未安装 / 出错 / 安装中… | 运行与连接说明、下载安装 / 卸载、「启用」、组件专属配置 |
 | 本地兼容 | `local-components/<id>/` 下的用户模块（徽标「本地」；可用 env `DSH_WORKBENCH_LOCAL_COMPONENTS_DIR`） | 同上 | 与仓库自带同接口；详情页「启用」；管理页复制 PR 清单 / 打开 Compare（**不**自动 commit / push / `gh pr create`） |
 | 通用 | uv / Node.js / 下载代理 | 可用 / 未安装 / 已设置… | 运行时安装与代理等共用项 |
 | 基础工具 | 添加工作组件 | 提示词工具 | Token 声明 + 可复制 AI 提示词：写成**本地**模块（不装进 `tools/`）。选型**功能最全优先**；应补可配置/必填参数（中文 label）；本地阶段 `keys` + `launch`/`spec` 硬编码默认，拟议 schema 写注释；自定义键未进 schema 前不持久化。模块就位后重启 DSH，再在设置页下载安装。 |
@@ -59,6 +61,8 @@ DSH 设置里的「工作组件」页：首页是功能列表（按分组），�
 | Chrome（autoConnect） | chrome + 渠道默认配置目录有 `DevToolsActivePort` 且端口开 | `list_pages` 成功 |
 | Chrome（browserUrl） | `GET <调试地址>/json/version` 成功 | `list_pages` 成功 |
 | Godot | 进程名以 Godot 开头（不含 venv 里的 `godot-ai`） | 已注册工具 + `session_manage(op=list)` 有会话 + `editor_state` 成功 |
+| FFmpeg | 本机能解析到 ffmpeg（PATH 或 `ffmpegPath`） | MCP 已就绪（Kinocut 不依赖常驻 GUI） |
+| Obsidian | 进程 Obsidian | 已注册工具 + TCP 连 Local REST API（`obsidianBaseUrl`，默认 `127.0.0.1:27123`） |
 
 ## 架构（给开发者）
 
@@ -93,7 +97,7 @@ local-components/      用户本地兼容源码（gitignore；可用 DSH_WORKBEN
 | GET/POST | `/settings` | 读写 `dsh-workbench` 设置 |
 | GET | `/components` | `{ ok, toolsDir, localComponentsDir, contributeCompareUrl, components }`；组件含 `moduleSource`（`bundled`/`local`）、`status`、`connection`、`install`、`source`（启动来源）等 |
 | GET | `/components/<id>/contribute` | 仅 local：PR 清单、文件列表、compare URL、命令模板 |
-| POST | `/components/<id>/install` | 开始（重新）安装，202；冲突 409。`id`：`uv` / `node` / `office` / … / `godot` |
+| POST | `/components/<id>/install` | 开始（重新）安装，202；冲突 409。`id`：`uv` / `node` / `office` / … / `godot` / `ffmpeg` / `obsidian` |
 | POST | `/components/<id>/uninstall` | 删除 `tools/` 中该安装 |
 | POST | `/components/godot/addon` | body `{ project }`：把同版本插件装进 Godot 项目 |
 

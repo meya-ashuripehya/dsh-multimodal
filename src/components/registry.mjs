@@ -19,6 +19,8 @@ import cloudflare from './cloudflare/index.mjs'
 import cloudflareDocs from './cloudflare-docs/index.mjs'
 import github from './github/index.mjs'
 import comfyui from './comfyui/index.mjs'
+import ffmpeg from './ffmpeg/index.mjs'
+import obsidian from './obsidian/index.mjs'
 import * as officeMod from './office/index.mjs'
 import * as blenderMod from './blender/index.mjs'
 import * as unityMod from './unity/index.mjs'
@@ -32,6 +34,8 @@ import * as cloudflareMod from './cloudflare/index.mjs'
 import * as cloudflareDocsMod from './cloudflare-docs/index.mjs'
 import * as githubMod from './github/index.mjs'
 import * as comfyuiMod from './comfyui/index.mjs'
+import * as ffmpegMod from './ffmpeg/index.mjs'
+import * as obsidianMod from './obsidian/index.mjs'
 
 /** 上游贡献目标仓库（提交 PR / compare 用）。 */
 export const CONTRIBUTE_REPO = 'meya-ashuripehya/dsh-multimodal'
@@ -51,6 +55,8 @@ const BUNDLED_ENTRIES = [
   { component: cloudflareDocs, mod: cloudflareDocsMod },
   { component: github, mod: githubMod },
   { component: comfyui, mod: comfyuiMod },
+  { component: ffmpeg, mod: ffmpegMod },
+  { component: obsidian, mod: obsidianMod },
 ]
 
 function tagBundled(component, mod) {

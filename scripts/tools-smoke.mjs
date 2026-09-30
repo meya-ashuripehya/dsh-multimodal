@@ -1,11 +1,11 @@
 // 工具安装冒烟：走插件同一套安装代码（createComponentManager().install，和设置页「下载安装」一样），
-// 把 uv / OfficeMCP / Blender MCP / Unity MCP / Figma / Photoshop / Chrome / Godot（godot-ai）装进插件的 tools/
+// 把 uv / OfficeMCP / Blender MCP / Unity MCP / Figma / Photoshop / Chrome / Godot / FFmpeg（kinocut）/ Obsidian 装进插件的 tools/
 // （可用 DSH_WORKBENCH_TOOLS_DIR 指到别处），然后按启动方案拉起各 MCP 服务器，走一遍 initialize + tools/list，
 // 再调几个不依赖外部软件的工具（Chrome：无头 + 临时配置目录打开 example.com 取快照 / 截图；Godot：只读的
 // session_manage(list) / editor_state，没开 Godot 时后者报「没有会话」属于预期）。
 // --uninstall：最后再走设置页「卸载」同一套代码（manager.uninstall）删掉这些组件，确认 tools/<id> 已删除。
 //
-//   node scripts/tools-smoke.mjs [uv node office blender unity figma photoshop chrome godot] [--skip-install] [--uninstall] [--proxy http://127.0.0.1:7890]
+//   node scripts/tools-smoke.mjs [uv node office blender unity figma photoshop chrome godot ffmpeg obsidian] [--skip-install] [--uninstall] [--proxy http://127.0.0.1:7890]
 //   node 不在默认列表里：系统里已有带 npm 的 Node.js 时用不到 tools/node；要测下载 Node.js 就显式写上 node。
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -18,9 +18,9 @@ const proxyAt = argv.indexOf('--proxy')
 const proxy = proxyAt >= 0 ? argv[proxyAt + 1] : ''
 const skipInstall = argv.includes('--skip-install')
 const uninstallAfter = argv.includes('--uninstall')
-const KNOWN = ['uv', 'node', 'office', 'blender', 'unity', 'figma', 'photoshop', 'chrome', 'godot']
+const KNOWN = ['uv', 'node', 'office', 'blender', 'unity', 'figma', 'photoshop', 'chrome', 'godot', 'ffmpeg', 'obsidian']
 const ALL = KNOWN.filter((id) => id !== 'node')
-const PROBE = ['blender', 'unity', 'figma', 'photoshop', 'chrome', 'godot']
+const PROBE = ['blender', 'unity', 'figma', 'photoshop', 'chrome', 'godot', 'ffmpeg', 'obsidian']
 const picked = argv.filter((a, i) => KNOWN.includes(a) && argv[i - 1] !== '--proxy')
 const ids = picked.length ? picked : ALL
 
@@ -34,6 +34,10 @@ const cfg = SettingsSchema({
   chromeHeadless: true,
   chromeUserDataDir: chromeProfile,
   godotEnabled: true,
+  ffmpegEnabled: true,
+  // smoke 用占位密钥；真实探测连库仍需本机 Obsidian + Local REST API
+  obsidianEnabled: true,
+  obsidianApiKey: 'smoke-placeholder',
 })
 const fakeLoader = { import: async () => ({ name: 'fake-dsh-mcp-client' }) }
 const ctx = {
@@ -91,7 +95,7 @@ printList('安装后（组件已自动重挂）')
 const m = managedPaths()
 console.log('\n== tools 目录大小')
 for (const [name, p] of [['uv', join(m.root, 'uv')], ['python', m.python], ['.uv-cache', m.cache], ['officemcp', m.officeRepo], ['blender', m.dir('blender')], ['unity', m.dir('unity')],
-  ['node', m.node], ['figma', m.dir('figma')], ['photoshop', m.dir('photoshop')], ['chrome', m.dir('chrome')], ['godot', m.dir('godot')], ['(合计)', m.root]]) {
+  ['node', m.node], ['figma', m.dir('figma')], ['photoshop', m.dir('photoshop')], ['chrome', m.dir('chrome')], ['godot', m.dir('godot')], ['ffmpeg', m.dir('ffmpeg')], ['obsidian', m.dir('obsidian')], ['(合计)', m.root]]) {
   console.log(`  ${name.padEnd(10)} ${mb(dirSize(p))}`)
 }
 
