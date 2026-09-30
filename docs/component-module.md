@@ -124,7 +124,7 @@ uv、Node.js 在 `manager.list()` 里以 `kind: 'prerequisite'` 出现，**不�
 | 路径 | `src/components/<id>/`（进 git） | `local-components/<id>/`（默认；gitignore） |
 | 标记 | `moduleSource: 'bundled'`（registry 写入） | `moduleSource: 'local'` |
 | 发现 | `registry.mjs` 静态 import | 启动时扫描目录并 `import()` |
-| 设置页 | 「工作组件」分组，徽标「仓库自带」 | 「本地兼容」分组，徽标「本地」；管理页可「贡献到仓库」 |
+| 设置页 | 「工作组件」分组，徽标「已验证」 | 「本地兼容」分组，徽标「本地」；管理页可「贡献到仓库」 |
 | 覆盖 | — | 与 bundled **同 id 时 bundled 优先**，本地被忽略 |
 
 **为何用 `local-components/` 而不是 `tools/` 或 `%APPDATA%`：**
