@@ -16,6 +16,14 @@ await build({
   target: 'node22',
   sourcemap: true,
   alias: { '@dsh/define-tool': join(root, 'vendor', 'dsh-tools', 'schema.js') },
-  banner: { js: "import { createRequire as __mmCreateRequire } from 'node:module'; const require = __mmCreateRequire(import.meta.url);" },
+  banner: {
+    js: [
+      '/* dsh-workbench. Original code: MIT, Copyright (c) 2026 dsh-workbench contributors. See LICENSE.',
+      ' * Bundled portions of @deepseek-ai/dsh-tools, @deepseek-ai/dsh-util-values, and HarnessError',
+      ' * from @deepseek-ai/dsh-llm: Copyright (c) 2026 DeepSeek, MIT. See vendor/dsh-tools/LICENSE and NOTICE.',
+      ' */',
+      "import { createRequire as __mmCreateRequire } from 'node:module'; const require = __mmCreateRequire(import.meta.url);",
+    ].join('\n'),
+  },
   logLevel: 'info',
 })
