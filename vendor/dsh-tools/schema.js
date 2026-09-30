@@ -1,3 +1,10 @@
+/*! Copyright (c) 2026 DeepSeek
+ * SPDX-License-Identifier: MIT
+ * Upstream: https://github.com/deepseek-ai/deepseek-harness
+ * Copied from DSH Desktop 2.0.13 (@deepseek-ai packages 0.1.5-rc.2).
+ * Local change: package imports rewritten to relative paths in this directory.
+ * Full license text: ./LICENSE — keep this notice with every copy.
+ */
 /** Unified JSON-value schema DSL, inference, compilation, and typed tool helper. @module dsh-tools/schema */
 import { HarnessError } from './harness-error.js';
 import { assertSupportedJsonSchema, isJsonSchemaRecord, isPlainJsonArray, JsonSchemaError, validateJsonSchemaValue } from "./json-schema.js";

@@ -28,7 +28,7 @@ local-components/     # 用户本地兼容（local；gitignore；默认可写）
 
 | 文件 | 用途 |
 | --- | --- |
-| `meta` 段 / `export const meta` | id、title、group、url、serverName、summary（图标仍在 `lib/client.js` 的 `ICONS`） |
+| `meta` 段 / `export const meta` | id、title、group、url、serverName、summary（图标仍在 `lib/client.js` 的 `ICONS`，只用通用线条，不用第三方标志） |
 | `install` | `component.install` |
 | `launch` | `component.launch` + 专用 args（如 `chromeArgs` / `godotArgs` 可放 shared 或本目录） |
 | `probe` | `export async function probe` + `export const app` |

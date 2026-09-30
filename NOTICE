@@ -1,0 +1,49 @@
+dsh-workbench
+Copyright (c) 2026 dsh-workbench contributors
+
+The original source in this repository is licensed under the MIT License.
+See the LICENSE file in the repository root.
+
+This notice does not change the license of third-party material. Keep it, and
+the license texts it points to, with every copy or substantial portion.
+
+## Third-party code
+
+vendor/dsh-tools/ is a copy of DeepSeek Harness code, not a work of the
+dsh-workbench contributors.
+
+  Copyright (c) 2026 DeepSeek
+  License: MIT (vendor/dsh-tools/LICENSE)
+  Upstream: https://github.com/deepseek-ai/deepseek-harness
+
+  Taken from DSH Desktop 2.0.13, package version 0.1.5-rc.2:
+
+    schema.js, json-schema.js
+      @deepseek-ai/dsh-tools
+    util-values.js
+      @deepseek-ai/dsh-util-values
+    harness-error.js
+      the HarnessError class from @deepseek-ai/dsh-llm
+
+  Local edits are limited to rewriting package imports onto relative paths in
+  this directory, and keeping only the HarnessError class in harness-error.js.
+  npm run vendor:sync rewrites those three generated files and puts the
+  copyright notice back. The DeepSeek copyright notice and MIT permission
+  text must stay with these files.
+
+The published npm metadata for an older @deepseek-ai/dsh-tools release
+(0.0.1-rc.1) has been described as BSD-3-Clause. The copy in this repository
+follows the MIT text of the public deepseek-harness tree, which matches these
+sources. If a future sync comes from a package whose own LICENSE file is
+different, replace vendor/dsh-tools/LICENSE with that file and update this
+notice. Do not drop the upstream copyright line.
+
+## Names
+
+DeepSeek, DSH, and the names of the applications this plugin can launch are
+used to say what the plugin is compatible with. They are trademarks of their
+owners. This project is not affiliated with, sponsored by, or endorsed by
+DeepSeek or those other owners.
+
+The settings page uses generic stroke icons. It does not include third-party
+logos or screenshots of third-party user interfaces.

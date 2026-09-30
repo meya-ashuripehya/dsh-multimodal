@@ -1,6 +1,10 @@
 # dsh-workbench（工作组件）
 
-DSH 插件，用来统一挂载和管理「控制其他工作软件」的 MCP 服务器（Office / 创作工具 / Windows 桌面 / Notion / Cloudflare / GitHub / ComfyUI 等）。每个工作组件以 `@deepseek-ai/dsh-mcp-client` 子插件的形式挂载：不写进 profile，随本插件卸载，设置改动后只重挂受影响的组件。
+兼容 DeepSeek Harness（DSH）的插件，用来统一挂载和管理「控制其他工作软件」的 MCP 服务器（Office / 创作工具 / Windows 桌面 / Notion / Cloudflare / GitHub / ComfyUI 等）。每个工作组件以 `@deepseek-ai/dsh-mcp-client` 子插件的形式挂载：不写进 profile，随本插件卸载，设置改动后只重挂受影响的组件。
+
+自有代码采用 [MIT 许可证](./LICENSE)。`vendor/dsh-tools/` 是 DeepSeek 的代码副本，版权归 DeepSeek，许可同样是 MIT，全文和保留义务见 [NOTICE](./NOTICE) 与 [vendor/dsh-tools/LICENSE](./vendor/dsh-tools/LICENSE)。
+
+文中的产品名称只用来说明兼容对象，是各自权利人的商标。本项目与 DeepSeek、微软、Blender Foundation、Unity Technologies、Figma、Adobe、Google、Godot Foundation、Notion、Cloudflare、GitHub、Comfy、FFmpeg、Obsidian 等没有隶属、赞助或授权关系。设置页图标是通用线条，仓库不收录第三方标志或界面截图。
 
 | 组件 | MCP 服务器 | 工具名前缀 | 前提（简述） |
 |---|---|---|---|

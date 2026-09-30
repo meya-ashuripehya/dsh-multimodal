@@ -10,7 +10,7 @@
  *     POST /dsh-workbench/api/components/<id>/install|uninstall
  *     （id：uv / node / office / blender / unity / figma / photoshop / chrome / godot），
  *     POST /dsh-workbench/api/components/godot/addon { project }（把同版本的 Godot AI 插件装进 Godot 项目），
- *     以及 /dsh-workbench/assets/*（插件 assets/ 下的静态图，如 Figma 导入说明截图）。
+ *     以及 /dsh-workbench/assets/*（插件 assets/ 下的静态文件；不要放入第三方界面截图或标志）。
  *  3. 会话控制（通用）：撤回（按用户回合就地截断多帧 zstd 日志）、重新输出、熔断（取消 runaway 工具/思考循环）；API 在 /dsh-workbench/api/session/*。
  *  4. 出图演示：`mm_image_demo` 在 Node 端生成演示 PNG，经 attachments.saveImage 存成持久图片，结果里带 image block。
  *
@@ -254,7 +254,7 @@ export function apply(ctx, config) {
   const sessionControls = mountSessionControls(ctx, () => current)
   ctx.effect?.(() => () => sessionControls.dispose?.(), 'dsh-workbench: session-controls')
 
-  // ── 设置页 API + 静态 assets（同源，供设置页帮助截图等）──
+  // ── 设置页 API + 静态 assets（同源；目录里只放本仓库有权分发的文件）──
   ctx.inject(['webServer'], (webCtx) => {
     webCtx.effect(() => {
       const offApi = webCtx.webServer.register({
