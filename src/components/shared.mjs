@@ -3,6 +3,7 @@
  * 各组件模块（src/components/<id>/）用这些原语实现 launch / install；运行时管理见 ./manager.mjs。
  */
 import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
   installNpmPackage, managedPaths, nodeSatisfies, nodeVersion,
@@ -231,3 +232,51 @@ export function godotArgs(cfg) {
  * @property {(cfg: object, project: string, opts?: object) => Promise<object>} [installAddon]
  */
 
+
+
+/** 系统 uv tool 安装的入口（%APPDATA%/uv/tools/<id>/Scripts/<entry>.exe）。 */
+export function systemUvToolExe(toolId, entry) {
+  const appData = process.env.APPDATA
+  if (!appData || !IS_WIN) return null
+  const exe = join(appData, 'uv', 'tools', toolId, 'Scripts', IS_WIN ? `${entry}.exe` : entry)
+  return existsSync(exe) ? exe : null
+}
+
+/** 本机已有的 mcp-remote proxy.js（~/.dsh/mcp-remote 或 tools/<id> 托管安装）。 */
+export function resolveMcpRemoteProxy(cfg, id, spec) {
+  const managed = managedNpmEntry(id, spec)
+  if (managed) return { path: managed, source: 'managed' }
+  const home = process.env.USERPROFILE || process.env.HOME || homedir()
+  const candidates = [
+    join(home, '.dsh', 'mcp-remote', 'node_modules', 'mcp-remote', 'dist', 'proxy.js'),
+    join(home, '.dsh', 'mcp-remote', 'node_modules', 'mcp-remote', 'dist', 'proxy.cjs'),
+  ]
+  for (const p of candidates) {
+    if (existsSync(p)) return { path: p, source: 'system' }
+  }
+  return null
+}
+
+/**
+ * 经 mcp-remote 桥接 OAuth 远程 MCP：tools/<id> → ~/.dsh/mcp-remote → npx mcp-remote。
+ * @param {ComponentModule} c
+ * @param {object} cfg
+ * @param {string} remoteUrl
+ * @param {string[]} [extraArgs]
+ * @param {object} [env]
+ */
+export function mcpRemoteLaunch(c, cfg, remoteUrl, extraArgs = [], env = {}) {
+  const url = String(remoteUrl || '').trim()
+  if (!url) return { ok: false, reason: '远程 MCP 地址为空' }
+  const args = [url, ...extraArgs]
+  const proxy = resolveMcpRemoteProxy(cfg, c.id, c.spec(cfg))
+  if (proxy) {
+    const node = resolveNode(cfg)
+    if (!node) return { ok: false, missing: true, reason: `已找到 mcp-remote（${SOURCE_TEXT[proxy.source] || proxy.source}），但找不到 Node.js 20.19+ / 22.12+` }
+    return {
+      ok: true, source: proxy.source, runtime: `Node ${node.version}，${SOURCE_TEXT[node.source]}`,
+      config: stdio(c.serverName, node.path, [proxy.path, ...args], { env: { ...node.env, ...env } }),
+    }
+  }
+  return npmLaunch(c, cfg, args, env)
+}
