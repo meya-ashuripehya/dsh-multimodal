@@ -11,7 +11,8 @@
  *     （id：uv / node / office / blender / unity / figma / photoshop / chrome / godot），
  *     POST /dsh-workbench/api/components/godot/addon { project }（把同版本的 Godot AI 插件装进 Godot 项目），
  *     以及 /dsh-workbench/assets/*（插件 assets/ 下的静态图，如 Figma 导入说明截图）。
- *  3. 出图演示：`mm_image_demo` 在 Node 端生成演示 PNG，经 attachments.saveImage 存成持久图片，结果里带 image block。
+ *  3. 会话控制（通用）：撤回（按用户回合就地截断多帧 zstd 日志）、重新输出、熔断（取消 runaway 工具/思考循环）；API 在 /dsh-workbench/api/session/*。
+ *  4. 出图演示：`mm_image_demo` 在 Node 端生成演示 PNG，经 attachments.saveImage 存成持久图片，结果里带 image block。
  *
  * 前端设置页与工具卡片在 lib/client.js。
  */
@@ -20,6 +21,7 @@ import { defineTool } from '@dsh/define-tool'
 import { renderDemoImage } from './png.mjs'
 import { COMPONENTS, componentById, createComponentManager, contributeInfo, localComponentsDir, CONTRIBUTE_COMPARE_URL } from './components.mjs'
 import { dirSize, killProcessesUnder, managedPaths, pluginRoot, toolsDir } from './tools.mjs'
+import { mountSessionControls, handleSessionApi } from './session-controls/index.mjs'
 import { createReadStream, existsSync, statSync } from 'node:fs'
 import { extname, join, relative, resolve, sep } from 'node:path'
 
@@ -110,6 +112,12 @@ export const SettingsSchema = z.object({
   comfyuiBin: z.string().default('').description('comfy-cli 的 comfy 可执行文件路径，作为 COMFY_BIN 传给服务器；留空时用环境变量 COMFY_BIN。'),
   nodePath: z.string().default('').description('node 可执行文件（npm 取同目录）。插件 tools/node 里有 Node.js 时优先用它；否则用这里的路径，留空时用 PATH 里的 node，再退回 DSH 自带的运行时。'),
   npmRegistry: z.string().default('').description('npm 镜像地址，例如 https://registry.npmmirror.com；留空用 npm 自己的设置。'),
+  sessionControlsEnabled: z.boolean().default(true).description('启用会话控制（撤回 / 重试 / 暂停熔断）。设置页保留高级开关；聊天内走消息操作与输入框暂停。'),
+  sessionCircuitEnabled: z.boolean().default(true).description('启用自动熔断：同一工具连打、步数过多或思考过长时取消当前回合。'),
+  sessionCircuitMaxSameTool: z.natural().min(2).max(50).default(6).description('熔断：同一工具（含相同参数）连续调用达到该次数时取消。'),
+  sessionCircuitMaxSteps: z.natural().min(5).max(500).default(80).description('熔断：单回合 step/start 次数上限。'),
+  sessionCircuitMaxReasoningChars: z.natural().min(1000).max(5000000).default(200000).description('熔断：单回合累计思考字符上限。'),
+
 })
 
 /** 兼容旧导出：Office 组件的启动方案（冒烟脚本在用）。 */
@@ -243,6 +251,9 @@ export function apply(ctx, config) {
   components.sync()
   ctx.effect?.(() => () => components.dispose(), 'dsh-workbench: components')
 
+  const sessionControls = mountSessionControls(ctx, () => current)
+  ctx.effect?.(() => () => sessionControls.dispose?.(), 'dsh-workbench: session-controls')
+
   // ── 设置页 API + 静态 assets（同源，供设置页帮助截图等）──
   ctx.inject(['webServer'], (webCtx) => {
     webCtx.effect(() => {
@@ -305,6 +316,10 @@ export function apply(ctx, config) {
             return sendJson(res, 200, { ok: true, ...info })
           }
           if (sub === '/health') return sendJson(res, 200, { ok: true, name, persisted: scope !== null })
+          if (sub.startsWith('/session')) {
+            const handled = await handleSessionApi(ctx, sessionControls.circuit, req, res, sub, { sendJson, readBody })
+            if (handled !== false) return
+          }
           return sendJson(res, 404, { ok: false, error: 'not found' })
         } catch (error) {
           return sendJson(res, error?.status ?? 400, { ok: false, error: String(error?.message ?? error) })

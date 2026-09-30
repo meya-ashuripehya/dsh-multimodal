@@ -16,7 +16,8 @@
     "lib/client.js",
     "cordis.patch.yml",
     "office/launch.py",
-    "assets/figma-import-plugin.png"
+    "assets/figma-import-plugin.png",
+    "assets/obsidian-local-rest-api.png"
   ],
   "dsh": {
     "bundle": {

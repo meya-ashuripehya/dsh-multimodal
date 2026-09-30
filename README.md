@@ -122,3 +122,31 @@ npm run smoke:local    # 本地兼容发现 / moduleSource / contribute 清单
 ```
 
 从源码挂进 DSH Desktop：在 `~/.dsh/profiles/desktop` 用 `pnpm add link:<插件目录>`，并在 `dsh.profile.bundles` 加入 `"dsh-workbench"`（若 profile 里曾直接挂同名 mcp-client，先去掉以免重复）。改 bundle 后需重启 Desktop。
+
+
+## 会话控制（通用）
+
+内置于本插件，不单独装包。面向官方 Harness **0.2.0-rc.2** 会话日志。
+
+### 功能
+
+| 功能 | 入口 | 行为 |
+|------|------|------|
+| **撤回** | 助手消息操作行「撤回」图标（设置 → 工作组件 → 通用 → 会话控制 可关） | 备份后就地截断 `session.v*.jsonl.zstd`：从该用户回合的 `turn/start` 起删除本回合及之后全部事件。多帧 zstd，frame0 仅 header。 |
+| **重试** | 助手消息操作行「重试」图标 | 先按撤回截断该助手所属用户回合及后续，再尝试用同一用户文本重新 `prompt`。 |
+| **熔断** | 输入框「暂停」按钮（随时可用，含思考中）；或自动阈值 | 调用 `agent.cancel({ kind: 'user' })`。自动：同工具连打 / 步数过多 / 思考过长。 |
+
+### 使用注意
+
+1. 操作改的是**磁盘日志**。若该会话仍在内存中打开，请**关闭并重新打开**（或重启 Harness），否则内存旧日志可能再次写出。
+2. 备份目录：`~/.dsh/repair-backups/workbench-session-controls-<时间戳>/`。
+3. 聊天内自动使用当前会话 `sessionId`，无需粘贴；设置页仍可调自动熔断阈值。
+4. 自动熔断阈值在设置页「会话控制」中调整。
+
+### API（宿主）
+
+- `GET /dsh-workbench/api/session/turns?sessionId=`
+- `POST /dsh-workbench/api/session/retract` `{ sessionId, userMessageSeq }`
+- `POST /dsh-workbench/api/session/regenerate` `{ sessionId, userMessageSeq }`
+- `POST /dsh-workbench/api/session/cancel` `{ sessionId, reason? }`
+- `GET /dsh-workbench/api/session/notices`
