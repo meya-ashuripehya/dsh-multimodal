@@ -5,6 +5,8 @@
 > **非目标**：不把「下载安装」落地的包放进 `src/`；`tools/` 仍是运行时目录（gitignore）。uv / Node.js 是通用前置，不做成工作组件文件夹（仍由宿主安装队列管理）。
 
 相关入口：`src/components/index.mjs`（注册表 + 管理器）、`src/connect.mjs`（探测汇总）、`src/tools.mjs`（下载 / venv / npm 原语）、`lib/client.js`（设置页 UI，手写，需与模块 meta / 字段说明保持同步）。
+> **多模态卡片（非组件模块）**：工具结果用统一 `MmBlock`（`type:'mm'` / `kind` / `status`），前端 `lib/client.js` 的 MmCard 渲染；见 `mm_image_demo`（演示出图）与 `mm_send_image`（本地图片路径 → 同款 MmCard）。
+
 
 ---
 

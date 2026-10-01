@@ -28,7 +28,7 @@
 
 计划加入：TRIX-GAMEBOT。
 
-另保留早期出图演示工具 `mm_image_demo`（生成本地演示 PNG，验证 DSH 的图片输出）。
+另保留多模态图片工具：`mm_image_demo`（生成本地演示 PNG）与 `mm_send_image`（把本地图片文件发成 MmCard）。
 
 ## 设置页
 
@@ -36,7 +36,7 @@ DSH 设置里的「工作组件」页：首页是功能列表（按分组），�
 
 | 分组 | 功能 | 列表状态（示意） | 管理页要点 |
 | --- | --- | --- | --- |
-| 多模态 | 出图演示 | 演示图边长 / openai-compatible · 未接入 | 出图提供方、接口、模型、默认边长 |
+| 多模态 | 出图演示 / 本地发图 | 演示图边长 / openai-compatible · 未接入 | 出图提供方、接口、模型、默认边长；`mm_send_image` 读本地文件 |
 | 工作组件 | Office / Blender / Unity / Figma / Photoshop / Chrome / Godot / Windows / Notion / Cloudflare / Cloudflare Docs / GitHub / ComfyUI / FFmpeg / Obsidian（徽标「仓库自带」） | 已连接 / 已启用 / 未启用 / 未安装 / 出错 / 安装中… | 运行与连接说明、下载安装 / 卸载、「启用」、组件专属配置 |
 | 本地兼容 | `local-components/<id>/` 下的用户模块（徽标「本地」；可用 env `DSH_WORKBENCH_LOCAL_COMPONENTS_DIR`） | 同上 | 与仓库自带同接口；详情页「启用」；管理页复制 PR 清单 / 打开 Compare（**不**自动 commit / push / `gh pr create`） |
 | 通用 | uv / Node.js / 下载代理 | 可用 / 未安装 / 已设置… | 运行时安装与代理等共用项 |
@@ -74,7 +74,7 @@ DSH 设置里的「工作组件」页：首页是功能列表（按分组），�
 
 ```
 src/
-  index.mjs            宿主入口：SettingsSchema、API、mm_image_demo
+  index.mjs            宿主入口：SettingsSchema、API、mm_image_demo、mm_send_image、mm_send_image
   components.mjs       兼容再导出 → ./components/
   components/          仓库自带组件 + shared / registry / manager
   connect-lib.mjs      「已连接」共享原语（进程 / TCP / MCP 调用）
@@ -83,7 +83,7 @@ src/
   png.mjs              零依赖 PNG / 演示图
 lib/
   index.mjs            构建产物（宿主）
-  client.js            前端设置页与 mm_image_demo 工具卡片（ModuleLoader 直接加载）
+  client.js            前端设置页与 mm_image_demo / mm_send_image 工具卡片（ModuleLoader 直接加载）
 office/launch.py       OfficeMCP 启动包装（stdio 友好）
 cordis.patch.yml       bundle 层，插入宿主插件行
 docs/component-module.md  组件模块约定（含 bundled vs local）
@@ -136,13 +136,13 @@ npm run smoke:local    # 本地兼容发现 / moduleSource / contribute 清单
 
 | 功能 | 入口 | 行为 |
 |------|------|------|
-| **撤回** | 助手消息操作行「撤回」图标（设置 → 工作组件 → 通用 → 会话控制 可关） | 备份后就地截断 `session.v*.jsonl.zstd`：从该用户回合的 `turn/start` 起删除本回合及之后全部事件。多帧 zstd，frame0 仅 header。 |
-| **重试** | 助手消息操作行「重试」图标 | 先按撤回截断该助手所属用户回合及后续，再尝试用同一用户文本重新 `prompt`。 |
-| **熔断** | 输入框「暂停」按钮（随时可用，含思考中）；或自动阈值 | 调用 `agent.cancel({ kind: 'user' })`。自动：同工具连打 / 步数过多 / 思考过长。 |
+| **撤回** | 用户消息下方操作行的「撤回」（设置 → 工作组件 → 通用 → 会话控制 可关） | 先把当前页正在看的会话恢复到内存，再追加一条 `surfaceOp: replace`，当前页收起该回合及之后的内容。恢复失败时才备份并物理截断磁盘日志，并由页面重新同步。 |
+| **重试** | 助手操作行的「重试」（复制与分支之间） | 先恢复会话，再保留这条用户消息，用 `surfaceOp: replace` 收起它后面的回复，然后 `followup` 同一条内容。新回复直接流在原问题下面。恢复失败时不改磁盘日志。 |
+| **熔断** | 输入框「暂停」按钮（随时可用，含思考中）；或自动阈值 | 暂停只调用 `agent.cancel({ kind: 'user' }, { keepInbox: true })`。自动熔断在同一取消之后，等回合停写，再按撤回把失败尾轮从磁盘截掉。 |
 
 ### 使用注意
 
-1. 操作改的是**磁盘日志**。若该会话仍在内存中打开，请**关闭并重新打开**（或重启 Harness），否则内存旧日志可能再次写出。
+1. 只打开着、还没在内存里的会话，会先按官方 `sessionController` 恢复，再在当前页收起内容。撤回收起该回合及之后的全部对话；重试留下原问题，收起原回复并立刻重新生成。页面不用退出再进。恢复失败时，撤回仍截断磁盘并由当前页重新同步；重试不先删日志。
 2. 备份目录：`~/.dsh/repair-backups/workbench-session-controls-<时间戳>/`。
 3. 聊天内自动使用当前会话 `sessionId`，无需粘贴；设置页仍可调自动熔断阈值。
 4. 自动熔断阈值在设置页「会话控制」中调整。
@@ -150,7 +150,7 @@ npm run smoke:local    # 本地兼容发现 / moduleSource / contribute 清单
 ### API（宿主）
 
 - `GET /dsh-workbench/api/session/turns?sessionId=`
-- `POST /dsh-workbench/api/session/retract` `{ sessionId, userMessageSeq }`
-- `POST /dsh-workbench/api/session/regenerate` `{ sessionId, userMessageSeq }`
+- `POST /dsh-workbench/api/session/retract` `{ sessionId, userMessageSeq? , messageId? }`
+- `POST /dsh-workbench/api/session/regenerate` `{ sessionId, userMessageSeq?, messageId? }`
 - `POST /dsh-workbench/api/session/cancel` `{ sessionId, reason? }`
 - `GET /dsh-workbench/api/session/notices`

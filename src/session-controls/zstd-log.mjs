@@ -1,7 +1,7 @@
 /**
  * Multi-frame zstd JSONL session log helpers (frame0 = header line only).
  */
-import { readFileSync, writeFileSync, copyFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, copyFileSync, mkdirSync, existsSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { constants, zstdCompressSync, zstdDecompressSync } from 'node:zlib'
@@ -141,4 +141,26 @@ export function writeSessionLog(logPath, header, events) {
     const body = JSON.stringify(header) + '\n' + events.map((e) => JSON.stringify(e)).join('\n') + (events.length ? '\n' : '')
     writeFileSync(logPath, body, 'utf8')
   }
+}
+
+/**
+ * Drop derived caches that would resurrect a physically removed tail.
+ * Official Harness 0.2 stores the projection at
+ * storages/session_projcache/sessions/<id>.json. A retrace summary, if the
+ * old plugin left one, is the same kind of shadow.
+ */
+export function clearDerivedCaches(sessionId) {
+  const id = String(sessionId)
+  const removed = []
+  const candidates = [
+    join(dshHome(), 'storages', 'session_projcache', 'sessions', `${id}.json`),
+    join(dshHome(), 'dsh-retrace', 'summaries', `${id}.jsonl`),
+    join(dshHome(), 'dsh-retrace', 'summaries', `${id}.json`),
+  ]
+  for (const file of candidates) {
+    if (!existsSync(file)) continue
+    rmSync(file, { force: true })
+    removed.push(file)
+  }
+  return removed
 }

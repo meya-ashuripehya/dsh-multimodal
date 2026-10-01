@@ -11,8 +11,8 @@
  *     （id：uv / node / office / blender / unity / figma / photoshop / chrome / godot），
  *     POST /dsh-workbench/api/components/godot/addon { project }（把同版本的 Godot AI 插件装进 Godot 项目），
  *     以及 /dsh-workbench/assets/*（插件 assets/ 下的静态文件；不要放入第三方界面截图或标志）。
- *  3. 会话控制（通用）：撤回（按用户回合就地截断多帧 zstd 日志）、重新输出、熔断（取消 runaway 工具/思考循环）；API 在 /dsh-workbench/api/session/*。
- *  4. 出图演示：`mm_image_demo` 在 Node 端生成演示 PNG，经 attachments.saveImage 存成持久图片，结果里带 image block。
+ *  3. 会话控制（通用）：撤回 / 重试（按回合就地截断多帧 zstd，保留连续 seq，并清投影缓存）、熔断（取消；自动熔断再截掉失败尾轮）；API 在 /dsh-workbench/api/session/*。
+ *  4. 出图：`mm_image_demo` 生成本地演示 PNG；`mm_send_image` 读取本地图片文件，经 attachments.saveImage 存成持久图片；二者 render 均发出 type:'mm' (kind:image) 并保留 legacy type:'image' 兼容。
  *
  * 前端设置页与工具卡片在 lib/client.js。
  */
@@ -22,13 +22,13 @@ import { renderDemoImage } from './png.mjs'
 import { COMPONENTS, componentById, createComponentManager, contributeInfo, localComponentsDir, CONTRIBUTE_COMPARE_URL } from './components.mjs'
 import { dirSize, killProcessesUnder, managedPaths, pluginRoot, toolsDir } from './tools.mjs'
 import { mountSessionControls, handleSessionApi } from './session-controls/index.mjs'
-import { createReadStream, existsSync, statSync } from 'node:fs'
-import { extname, join, relative, resolve, sep } from 'node:path'
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs'
+import { basename, extname, join, relative, resolve, sep } from 'node:path'
 
 export { COMPONENTS, componentById, createComponentManager, contributeInfo, localComponentsDir, CONTRIBUTE_COMPARE_URL, dirSize, killProcessesUnder, managedPaths, toolsDir }
 
 export const name = 'dsh-workbench'
-export const inject = ['tools']
+export const inject = ['tools', 'agents', 'sessions', 'sessionController']
 
 const NAMESPACE = 'dsh-workbench'
 const API_PREFIX = '/dsh-workbench/api'
@@ -112,7 +112,7 @@ export const SettingsSchema = z.object({
   comfyuiBin: z.string().default('').description('comfy-cli 的 comfy 可执行文件路径，作为 COMFY_BIN 传给服务器；留空时用环境变量 COMFY_BIN。'),
   nodePath: z.string().default('').description('node 可执行文件（npm 取同目录）。插件 tools/node 里有 Node.js 时优先用它；否则用这里的路径，留空时用 PATH 里的 node，再退回 DSH 自带的运行时。'),
   npmRegistry: z.string().default('').description('npm 镜像地址，例如 https://registry.npmmirror.com；留空用 npm 自己的设置。'),
-  sessionControlsEnabled: z.boolean().default(true).description('启用会话控制（撤回 / 重试 / 暂停熔断）。设置页保留高级开关；聊天内走消息操作与输入框暂停。'),
+  sessionControlsEnabled: z.boolean().default(false).description('【实验性】启用会话控制（撤回 / 重试 / 暂停熔断）。默认关闭；此功能尚未开发完毕，启用后可能对对话造成不可逆破坏。设置页保留高级开关；聊天内走消息操作与输入框暂停。'),
   sessionCircuitEnabled: z.boolean().default(true).description('启用自动熔断：同一工具连打、步数过多或思考过长时取消当前回合。'),
   sessionCircuitMaxSameTool: z.natural().min(2).max(50).default(6).description('熔断：同一工具（含相同参数）连续调用达到该次数时取消。'),
   sessionCircuitMaxSteps: z.natural().min(5).max(500).default(80).description('熔断：单回合 step/start 次数上限。'),
@@ -171,12 +171,40 @@ const IMAGE_VALUE_SCHEMA = {
   required: true,
   properties: {
     attachmentId: { type: 'string', required: true },
-    mediaType: { type: 'string', enum: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], required: true },
+    mediaType: { type: 'string', enum: ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp'], required: true },
     bytes: { type: 'integer', required: true },
     width: { type: 'integer', required: true },
     height: { type: 'integer', required: true },
     name: { type: 'string' },
   },
+}
+
+
+/**
+ * MmBlock content shape emitted by multimodal tool renderers (toolview):
+ *   type: 'mm'
+ *   kind: 'image' | 'video' | 'webpage' | 'document'
+ *   status: 'pending' | 'ready' | 'error' | 'canceled'
+ *   progress?: number (0..1 or 0..100)
+ *   title?: string
+ *   caption?: string
+ *   error?: string
+ *   asset?: { attachment: ImageRef }
+ *   source?: { url?: string, href?: string }
+ * Frontend lib/client.js MmCard renders these; video/webpage/document are stubs for now.
+ * Legacy type:'image' blocks remain as a short-term compatibility fallback.
+ */
+function mmImageBlock(image, opts = {}) {
+  return {
+    type: 'mm',
+    kind: 'image',
+    status: opts.status || 'ready',
+    ...(opts.title === undefined ? {} : { title: opts.title }),
+    ...(opts.caption === undefined ? {} : { caption: opts.caption }),
+    ...(opts.error === undefined ? {} : { error: opts.error }),
+    ...(opts.progress === undefined ? {} : { progress: opts.progress }),
+    asset: { attachment: imageRef(image) },
+  }
 }
 
 function imageRef(image) {
@@ -189,6 +217,114 @@ function imageRef(image) {
     ...(image.name === undefined ? {} : { name: image.name }),
   }
 }
+
+/** Local image types accepted by mm_send_image (v1; no remote URLs). */
+const IMAGE_EXT_MEDIA = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
+}
+const IMAGE_MAX_BYTES = 25 * 1024 * 1024
+
+/**
+ * Best-effort width/height from common image headers (fallback if saveImage omits dims).
+ * @returns {{ width: number, height: number } | null}
+ */
+function sniffImageDims(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 24) return null
+  // PNG
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+    return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) }
+  }
+  // GIF
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) {
+    return { width: buf.readUInt16LE(6), height: buf.readUInt16LE(8) }
+  }
+  // BMP
+  if (buf[0] === 0x42 && buf[1] === 0x4d && buf.length >= 26) {
+    const w = buf.readInt32LE(18)
+    const h = Math.abs(buf.readInt32LE(22))
+    if (w > 0 && h > 0) return { width: w, height: h }
+  }
+  // JPEG SOF
+  if (buf[0] === 0xff && buf[1] === 0xd8) {
+    let i = 2
+    while (i + 9 < buf.length) {
+      if (buf[i] !== 0xff) break
+      const marker = buf[i + 1]
+      const len = buf.readUInt16BE(i + 2)
+      if ((marker >= 0xc0 && marker <= 0xc3) || (marker >= 0xc5 && marker <= 0xc7) || (marker >= 0xc9 && marker <= 0xcb) || (marker >= 0xcd && marker <= 0xcf)) {
+        return { height: buf.readUInt16BE(i + 5), width: buf.readUInt16BE(i + 7) }
+      }
+      i += 2 + len
+    }
+  }
+  // WebP (RIFF....WEBP)
+  if (buf.length >= 30 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') {
+    const tag = buf.toString('ascii', 12, 16)
+    if (tag === 'VP8 ' && buf.length >= 30) {
+      return { width: buf.readUInt16LE(26) & 0x3fff, height: buf.readUInt16LE(28) & 0x3fff }
+    }
+    if (tag === 'VP8L' && buf.length >= 25) {
+      const b = buf.readUInt32LE(21)
+      return { width: (b & 0x3fff) + 1, height: ((b >> 14) & 0x3fff) + 1 }
+    }
+    if (tag === 'VP8X' && buf.length >= 30) {
+      const w = 1 + buf[24] + (buf[25] << 8) + (buf[26] << 16)
+      const h = 1 + buf[27] + (buf[28] << 8) + (buf[29] << 16)
+      return { width: w, height: h }
+    }
+  }
+  return null
+}
+
+/**
+ * Resolve + validate a local image path for mm_send_image.
+ * Rejects empty paths, remote URLs, missing/non-file paths, bad extensions, oversized files.
+ */
+function loadLocalImageFile(rawPath) {
+  const input = String(rawPath ?? '').trim()
+  if (!input) throw new Error('path must be a non-empty local file path')
+  if (/^(https?|ftp|data):/i.test(input)) {
+    throw new Error('remote URLs are not supported in v1; pass a local file path')
+  }
+  let full = input
+  if (/^file:/i.test(input)) {
+    try {
+      full = decodeURIComponent(new URL(input).pathname)
+      // Windows file:///C:/... → /C:/... → C:/...
+      if (/^\/[A-Za-z]:\//.test(full)) full = full.slice(1)
+    } catch {
+      throw new Error('invalid file: URL')
+    }
+  }
+  full = resolve(full)
+  if (!existsSync(full)) throw new Error('image file not found: ' + full)
+  const st = statSync(full)
+  if (!st.isFile()) throw new Error('path is not a file: ' + full)
+  if (st.size <= 0) throw new Error('image file is empty: ' + full)
+  if (st.size > IMAGE_MAX_BYTES) throw new Error('image too large (' + st.size + ' bytes); max ' + IMAGE_MAX_BYTES)
+  const ext = extname(full).toLowerCase()
+  const mediaType = IMAGE_EXT_MEDIA[ext]
+  if (!mediaType) {
+    throw new Error('unsupported image type "' + (ext || '(none)') + '"; allowed: ' + Object.keys(IMAGE_EXT_MEDIA).join(' '))
+  }
+  const data = readFileSync(full)
+  const sniffed = sniffImageDims(data)
+  return {
+    full,
+    name: basename(full),
+    mediaType,
+    data,
+    bytes: data.length,
+    width: sniffed && sniffed.width,
+    height: sniffed && sniffed.height,
+  }
+}
+
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -317,7 +453,7 @@ export function apply(ctx, config) {
           }
           if (sub === '/health') return sendJson(res, 200, { ok: true, name, persisted: scope !== null })
           if (sub.startsWith('/session')) {
-            const handled = await handleSessionApi(ctx, sessionControls.circuit, req, res, sub, { sendJson, readBody })
+            const handled = await handleSessionApi(ctx, sessionControls.circuit, req, res, sub, { sendJson, readBody, getConfig: () => current })
             if (handled !== false) return
           }
           return sendJson(res, 404, { ok: false, error: 'not found' })
@@ -375,13 +511,18 @@ export function apply(ctx, config) {
             image: IMAGE_VALUE_SCHEMA,
           },
         },
-        render: (_args, value) => [
-          {
-            type: 'text',
-            text: `Generated demo image for "${value.prompt}": ${value.image.mediaType}, ${value.image.width}x${value.image.height} px, ${value.image.bytes} bytes.`,
-          },
-          { type: 'image', attachment: imageRef(value.image) },
-        ],
+        render: (_args, value) => {
+          const caption = `${value.image.mediaType}, ${value.image.width}x${value.image.height} px, ${value.image.bytes} bytes.`
+          return [
+            {
+              type: 'text',
+              text: `Generated demo image for "${value.prompt}": ${caption}`,
+            },
+            mmImageBlock(value.image, { status: 'ready', title: value.prompt, caption }),
+            // Short-term compatibility for anything still reading type:'image'
+            { type: 'image', attachment: imageRef(value.image) },
+          ]
+        },
       },
       isConcurrencySafe: () => true,
       async execute(args) {
@@ -405,5 +546,69 @@ export function apply(ctx, config) {
         }
       },
     }))
+
+    imgCtx.tools.register(defineTool({
+      name: 'mm_send_image',
+      description: 'Send a local image file as a multimodal card in the chat. Pass an absolute or workspace-relative path to a png/jpg/webp/gif/bmp file; optionally set title and caption. Does not fetch remote URLs.',
+      parameters: {
+        path: { type: 'string', required: true, description: 'Local image file path (png/jpg/jpeg/webp/gif/bmp). Not a remote URL.' },
+        title: { type: 'string', description: 'Optional card title (defaults to the file name).' },
+        caption: { type: 'string', description: 'Optional caption shown under the image.' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            path: { type: 'string', required: true },
+            title: { type: 'string' },
+            caption: { type: 'string' },
+            image: IMAGE_VALUE_SCHEMA,
+          },
+        },
+        render: (_args, value) => {
+          const title = value.title || value.image.name || value.path
+          const caption = value.caption
+            || (value.image.mediaType + ', ' + value.image.width + 'x' + value.image.height + ' px, ' + value.image.bytes + ' bytes.')
+          return [
+            {
+              type: 'text',
+              text: 'Sent local image "' + title + '": ' + value.image.mediaType + ', ' + value.image.width + 'x' + value.image.height + ' px, ' + value.image.bytes + ' bytes.',
+            },
+            mmImageBlock(value.image, { status: 'ready', title, caption }),
+            { type: 'image', attachment: imageRef(value.image) },
+          ]
+        },
+      },
+      isConcurrencySafe: () => true,
+      async execute(args) {
+        const loaded = loadLocalImageFile(args.path)
+        const title = String(args.title ?? '').trim() || loaded.name
+        const captionRaw = String(args.caption ?? '').trim()
+        const attachments = imgCtx.get('attachments')
+        if (!attachments) throw new Error('no attachment service is mounted')
+        const ref = await attachments.saveImage({
+          data: loaded.data,
+          mediaType: loaded.mediaType,
+          name: loaded.name,
+        })
+        const width = Number(ref.width ?? loaded.width ?? 0) || 0
+        const height = Number(ref.height ?? loaded.height ?? 0) || 0
+        return {
+          path: loaded.full,
+          title,
+          ...(captionRaw ? { caption: captionRaw } : {}),
+          image: {
+            attachmentId: String(ref.attachmentId),
+            mediaType: ref.mediaType || loaded.mediaType,
+            bytes: ref.bytes ?? loaded.bytes,
+            width,
+            height,
+            ...(ref.name === undefined && !loaded.name ? {} : { name: ref.name || loaded.name }),
+          },
+        }
+      },
+    }))
+
   })
 }
