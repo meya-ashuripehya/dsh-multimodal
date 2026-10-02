@@ -4,7 +4,7 @@
 
 自有代码采用 [MIT 许可证](./LICENSE)。`vendor/dsh-tools/` 是 DeepSeek 的代码副本，版权归 DeepSeek，许可同样是 MIT，全文和保留义务见 [NOTICE](./NOTICE) 与 [vendor/dsh-tools/LICENSE](./vendor/dsh-tools/LICENSE)。
 
-文中的产品名称只用来说明兼容对象，是各自权利人的商标。本项目与 DeepSeek、微软、Blender Foundation、Unity Technologies、Figma、Adobe、Google、Godot Foundation、Notion、Cloudflare、GitHub、Comfy、FFmpeg、Obsidian 等没有隶属、赞助或授权关系。设置页图标是通用线条，仓库不收录第三方标志或界面截图。
+文中的产品名称只用来说明兼容对象，是各自权利人的商标。本项目与 DeepSeek、微软、Blender Foundation、Unity Technologies、Figma、Adobe、Google、Godot Foundation、Notion、Cloudflare、GitHub、Comfy、FFmpeg、Obsidian 等没有隶属、赞助或授权关系。设置页图标是通用线条；仓库不收录第三方产品标志。插件自身设置页的实装截图见下文「实装截图」。
 
 | 组件 | MCP 服务器 | 工具名前缀 | 前提（简述） |
 |---|---|---|---|
@@ -24,11 +24,19 @@
 | FFmpeg | [Kinocut](https://github.com/KyaniteLabs/kinocut)（PyPI `kinocut`，原 mcp-video） | `mcp__ffmpeg__` | 本机已安装 ffmpeg/ffprobe（PATH 或设置路径） |
 | Obsidian | [obsidian-mcp-server](https://github.com/cyanheads/obsidian-mcp-server)（npm） | `mcp__obsidian__` | Obsidian 开着 + 社区插件 Local REST API + API 密钥 |
 
-组件依赖的运行时（uv + Python，或 Node.js）与各上游 MCP 包，都可以在设置页「下载安装」到插件自己的 `tools/` 目录。Figma / Photoshop / Chrome / Godot / FFmpeg / Obsidian 默认关闭，装好后在管理页打开「启用」。具体安装、桥接、端口与项目侧配置都在设置 UI 里完成，本 README 不重复操作步骤。
+组件依赖的运行时（uv + Python，或 Node.js）与各上游 MCP 包，都可以在设置页「下载安装」到插件自己的 `tools/` 目录。**新鲜安装时所有工作组件 MCP 与会话控制均默认关闭**（`*Enabled: false`），装好后在管理页逐个打开「启用」才会挂载对应 MCP。具体安装、桥接、端口与项目侧配置都在设置 UI 里完成，本 README 不重复操作步骤。
 
 计划加入：TRIX-GAMEBOT。
 
-另保留多模态图片工具：`mm_image_demo`（生成本地演示 PNG）与 `mm_send_image`（把本地图片文件发成 MmCard）。
+多模态：`mm_send_image`（本地图片 → Host `attachmentId`；render=`text`+`image`；UI：`presentationMeta.mm` → turnTail MmCard，toolview 仅 pending/compact）。
+
+## 实装截图
+
+下列截图展示插件在 DSH 设置里的「工作组件」首页（MCP 全部默认关闭时仍可浏览设置页与组件列表）。图片放在 [`docs/images/`](./docs/images/)；补拍或换图请按 [`docs/images/CAPTURE.md`](./docs/images/CAPTURE.md)。
+
+| 截图 | 说明 |
+| --- | --- |
+| ![工作组件列表](./docs/images/01-settings-workbench-list.png) | 设置 →「工作组件」首页：分组列表、行尾状态、「仓库自带」等徽标 |
 
 ## 设置页
 
@@ -36,13 +44,13 @@ DSH 设置里的「工作组件」页：首页是功能列表（按分组），�
 
 | 分组 | 功能 | 列表状态（示意） | 管理页要点 |
 | --- | --- | --- | --- |
-| 多模态 | 出图演示 / 本地发图 | 演示图边长 / openai-compatible · 未接入 | 出图提供方、接口、模型、默认边长；`mm_send_image` 读本地文件 |
+| 多模态 | 媒体卡片 | mm_send_image · 可用 | `mm_send_image` 发图（API text+image；settled MmCard 在 turnTail，toolview 折叠后仍可见） |
 | 工作组件 | Office / Blender / Unity / Figma / Photoshop / Chrome / Godot / Windows / Notion / Cloudflare / Cloudflare Docs / GitHub / ComfyUI / FFmpeg / Obsidian（徽标「仓库自带」） | 已连接 / 已启用 / 未启用 / 未安装 / 出错 / 安装中… | 运行与连接说明、下载安装 / 卸载、「启用」、组件专属配置 |
 | 本地兼容 | `local-components/<id>/` 下的用户模块（徽标「本地」；可用 env `DSH_WORKBENCH_LOCAL_COMPONENTS_DIR`） | 同上 | 与仓库自带同接口；详情页「启用」；管理页复制 PR 清单 / 打开 Compare（**不**自动 commit / push / `gh pr create`） |
 | 通用 | uv / Node.js / 下载代理 | 可用 / 未安装 / 已设置… | 运行时安装与代理等共用项 |
 | 基础工具 | 添加工作组件 | 提示词工具 | Token 声明 + 可复制 AI 提示词：写成**本地**模块（不装进 `tools/`）。选型**功能最全优先**；应补可配置/必填参数（中文 label）；本地阶段 `keys` + `launch`/`spec` 硬编码默认，拟议 schema 写注释；自定义键未进 schema 前不持久化。模块就位后重启 DSH，再在设置页下载安装。 |
 
-有上游仓库的功能在标题旁显示蓝色网址文字（新标签打开）。管理页「‹ 返回」或 Esc 回列表；每页各自「保存」；「启用」拨动后立即单独保存（本地组件同样有启用开关，键 `<id>Enabled`，缺省开）。安装进行中列表与管理页约每 1.5 秒刷新；有组件已启动时约每 5 秒刷新以跟上「已连接」。设置命名空间：`dsh-workbench`。
+有上游仓库的功能在标题旁显示蓝色网址文字（新标签打开）。管理页「‹ 返回」或 Esc 回列表；每页各自「保存」；「启用」拨动后立即单独保存（本地组件同样有启用开关，键 `<id>Enabled`，**缺省关**）。安装进行中列表与管理页约每 1.5 秒刷新；有组件已启动时约每 5 秒刷新以跟上「已连接」。设置命名空间：`dsh-workbench`。
 
 ### 「已连接」
 
@@ -74,16 +82,15 @@ DSH 设置里的「工作组件」页：首页是功能列表（按分组），�
 
 ```
 src/
-  index.mjs            宿主入口：SettingsSchema、API、mm_image_demo、mm_send_image、mm_send_image
+  index.mjs            宿主入口：SettingsSchema、API、mm_send_image
   components.mjs       兼容再导出 → ./components/
   components/          仓库自带组件 + shared / registry / manager
   connect-lib.mjs      「已连接」共享原语（进程 / TCP / MCP 调用）
   connect.mjs          汇总各组件 app/probe，提供 probeComponent
   tools.mjs            tools/ 布局、下载、uv / Node / npm / venv 安装
-  png.mjs              零依赖 PNG / 演示图
 lib/
   index.mjs            构建产物（宿主）
-  client.js            前端设置页与 mm_image_demo / mm_send_image 工具卡片（ModuleLoader 直接加载）
+  client.js            前端设置页、mm_send_image toolview（pending）与 turnTail MmCard（ModuleLoader）
 office/launch.py       OfficeMCP 启动包装（stdio 友好）
 cordis.patch.yml       bundle 层，插入宿主插件行
 docs/component-module.md  组件模块约定（含 bundled vs local）
@@ -118,7 +125,7 @@ local-components/      用户本地兼容源码（gitignore；可用 DSH_WORKBEN
 ```powershell
 npm install
 npm run build          # 不依赖已安装的 DSH；defineTool 在 vendor/dsh-tools（升级后可 npm run vendor:sync）
-npm run smoke          # 假 ctx，生成 lib/smoke.png
+npm run smoke          # 假 ctx，mm_send_image → lib/smoke.png
 npm run smoke:tools    # 走同一套安装代码装组件，再 MCP initialize / tools/list（可指定组件、--proxy、--skip-install、--uninstall）
 npm run smoke:office   # 按插件启动方案拉起 OfficeMCP（可用 --expect-managed）
 npm run smoke:connect  # 「已连接」实机冒烟（Windows）：node scripts/connect-smoke.mjs chrome …
@@ -146,6 +153,7 @@ npm run smoke:local    # 本地兼容发现 / moduleSource / contribute 清单
 2. 备份目录：`~/.dsh/repair-backups/workbench-session-controls-<时间戳>/`。
 3. 聊天内自动使用当前会话 `sessionId`，无需粘贴；设置页仍可调自动熔断阈值。
 4. 自动熔断阈值在设置页「会话控制」中调整。
+5. 主开关 `sessionControlsEnabled` 经 `/settings` 保存。有 DSH 设置服务时写入该服务；Desktop 无设置服务时写入插件目录 `.dsh-workbench-settings.json`（可用 `DSH_WORKBENCH_SETTINGS_FILE` 覆盖路径）。启用后聊天内撤回/重试/暂停会立即出现，无需重启。
 
 ### API（宿主）
 

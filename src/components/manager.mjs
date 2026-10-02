@@ -445,7 +445,7 @@ export function createComponentManager(ctx, getConfig, options = {}) {
           connection = { state: conn.state, detail: conn.detail, via: conn.via, checkedAt: conn.checkedAt || null }
         }
         const enabledKey = `${c.id}Enabled`
-        const enabled = Object.prototype.hasOwnProperty.call(cfg, enabledKey) ? !!cfg[enabledKey] : true
+        const enabled = Object.prototype.hasOwnProperty.call(cfg, enabledKey) ? !!cfg[enabledKey] : false
         return {
           id: c.id,
           label: c.label,

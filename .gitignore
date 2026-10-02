@@ -8,3 +8,5 @@ local-components/
 lib/.localcomp-smoke-dir/
 lib/localcomp-smoke.json
 
+# Runtime settings when Desktop has no ctx.settings service
+.dsh-workbench-settings.json

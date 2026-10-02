@@ -5,7 +5,7 @@
 > **非目标**：不把「下载安装」落地的包放进 `src/`；`tools/` 仍是运行时目录（gitignore）。uv / Node.js 是通用前置，不做成工作组件文件夹（仍由宿主安装队列管理）。
 
 相关入口：`src/components/index.mjs`（注册表 + 管理器）、`src/connect.mjs`（探测汇总）、`src/tools.mjs`（下载 / venv / npm 原语）、`lib/client.js`（设置页 UI，手写，需与模块 meta / 字段说明保持同步）。
-> **多模态卡片（非组件模块）**：工具结果用统一 `MmBlock`（`type:'mm'` / `kind` / `status`），前端 `lib/client.js` 的 MmCard 渲染；见 `mm_image_demo`（演示出图）与 `mm_send_image`（本地图片路径 → 同款 MmCard）。
+> **多模态卡片（非组件模块）**：UI 用统一 `MmBlock`（`type:'mm'` / `kind` / `status`），经 `presentationMeta.mm` 交给前端；`output.render` 只发 Host 接受的 `text`+`image`（DeepSeek Messages 拒 `mm`）。工具 `mm_send_image`（本地图片 → Host attachmentId）。运行中 `tool.call.toolview` 只显示 pending/sending；**settled 全卡挂在 `conversation.chat.turnTail`**（ConversationNodeDefinition → turn data `mmCards`，与 deliverables 同属产物表面），过程折叠后仍可见。`loadImage` 经 `uiConversation.imageUrl`。
 
 
 ---
@@ -142,7 +142,7 @@ uv、Node.js 在 `manager.list()` 里以 `kind: 'prerequisite'` 出现，**不�
 设置页本地组件管理页提供「复制 PR 清单」「打开 Compare」。**安全默认（不会代用户动 git）**：
 
 - [ ] 自检模块导出齐全（`id` / `meta` / `app` / `probe` / `component`）
-- [ ] `launch` 关闭判断用 `=== false`；自定义参数有中文说明与拟议 schema 注释
+- [ ] `launch` 关闭判断用 `!cfg.<id>Enabled`（缺键/false 均关，仅 true 启）；自定义参数有中文说明与拟议 schema 注释
 - [ ] 复制 PR 清单 + `git` / `gh` 命令模板
 - [ ] 打开 https://github.com/meya-ashuripehya/dsh-multimodal/compare
 - [ ] 由用户本人审阅后自行 commit / push / 开 PR
@@ -168,7 +168,7 @@ API：`GET /dsh-workbench/api/components/<id>/contribute`（返回清单、文�
 3. **参数**：AI **应**为组件增加可配置或必填参数（host、package、path、token 占位等），给出清晰**中文** label / 帮助文案；优先补上有用参数而不是省略。
 4. **本地阶段配置**：在 `keys` 中声明；在 `launch()` / `spec()` 里硬编码默认（如 `cfg.xxxPackage || 'upstream-pkg'`）；在模块注释与 `meta.summary` / `note` 说明；若也需要 UI 字段，在注释写出拟议的 `SettingsSchema` / `INPUT_FIELDS` 形状（含中文 label / desc），供后续 PR。
 5. **持久化**：未进 schema 的自定义键（除宿主已合并保留的本地 `*Enabled` 外）**不会**进持久化 `cfg`；此时无法在 UI 改这些键。
-6. **启用键**：`<id>Enabled`；详情页已有开关；`launch` 仅 `cfg.<id>Enabled === false` 时关闭（缺键 = 启用）。
+6. **启用键**：`<id>Enabled`；详情页已有开关；`launch` 用 `!cfg.<id>Enabled` 关闭（缺键 / false = 关，仅 true = 启）。
 7. **就位后**：用户可重启 DSH，再在设置页「下载安装」；本提示词**不要** commit / push / 开 PR。
 
 ### A. 先做本地兼容（推荐；设置页「添加工作组件」提示词走这条）
@@ -176,7 +176,7 @@ API：`GET /dsh-workbench/api/components/<id>/contribute`（返回清单、文�
 1. 建目录 `local-components/<id>/`，实现 `index.mjs`（`meta` / `app` / `probe` / `component`）。
 2. 重启 / 重载插件后应出现在设置页「本地兼容」；**不要**改 `registry.mjs` 静态表。
 3. **不要**把 MCP 下载进 `tools/`（除非用户在 UI 点「下载安装」）。
-4. 详情页已有「启用」开关（`<id>Enabled`，缺省开；仅 `=== false` 关）。`launch` 用 `cfg.<id>Enabled === false` 才返回 OFF；**不要** `if (!cfg.<id>Enabled)`。其它自定义键仍无 UI，须待 schema / INPUT_FIELDS；`spec` / 默认包名可在模块内硬编码。
+4. 详情页已有「启用」开关（`<id>Enabled`，**缺省关**；仅显式 `true` 启）。`launch` 用 `if (!cfg.<id>Enabled) return OFF`。其它自定义键仍无 UI，须待 schema / INPUT_FIELDS；`spec` / 默认包名可在模块内硬编码。
 5. `probe`：守护进程 / 远程 / WSL 等可先探测 MCP/工具，勿在无 Desktop 进程时一律 `noAppFor`。
 6. 满意后用管理页「贡献到仓库」：复制清单 + 打开 GitHub Compare；**不**自动 commit / push / `gh pr create`（见上「提交 PR」）。
 
@@ -194,12 +194,12 @@ API：`GET /dsh-workbench/api/components/<id>/contribute`（返回清单、文�
 
 ## 本地启用键与 RuntimeSettingsSchema
 
-本地组件详情页有「启用」开关（与 bundled 相同 UI），键名 `<id>Enabled`，缺省开启。
+本地组件详情页有「启用」开关（与 bundled 相同 UI），键名 `<id>Enabled`，**缺省关闭**（与 bundled 一致：新鲜安装不自动挂 MCP）。
 
-- 前端：`lib/client.js` 的 `ensureLocalEnabledField(id)` 动态注册 switch；`fill` / 详情渲染缺键时按 **ON**。
-- 后端：`src/index.mjs` 在加载时用 `localEnabledSchemaExtras()` 收集当前 local 的 `*Enabled`，得到 **`RuntimeSettingsSchema`**（`SettingsSchema` ∩ 本地启用键）。`Config` / `settings.register` / `POST /settings` 走该 runtime schema。
+- 前端：`lib/client.js` 的 `ensureLocalEnabledField(id)` 动态注册 switch；`fill` / 详情渲染缺键时按 **OFF**。
+- 后端：`src/index.mjs` 在加载时用 `localEnabledSchemaExtras()` 收集当前 local 的 `*Enabled`（schema 默认 `false`），得到 **`RuntimeSettingsSchema`**（`SettingsSchema` ∩ 本地启用键）。`Config` / `settings.register` / `POST /settings` 走该 runtime schema。
 - `pickLocalEnabled`：Cordis `settings.register` 可能丢掉未知键时，把本地 `*Enabled` 布尔值合并回 `current`，避免开关写不进或读丢。
-- `launch` / manager：仅 `cfg.<id>Enabled === false` 视为关闭；**不要** `if (!cfg.<id>Enabled)`。
+- `launch` / manager：`!cfg.<id>Enabled`（缺键 / false）视为关闭；仅显式 `true` 挂载。
 
 ## 本地示例模式（Docker，不强制进库）
 
