@@ -36,7 +36,7 @@
 
 | 截图 | 说明 |
 | --- | --- |
-| ![工作组件列表](./docs/images/01-settings-workbench-list.png) | 设置 →「工作组件」首页：分组列表、行尾状态、「仓库自带」等徽标 |
+| ![工作组件列表](./docs/images/01-settings-workbench-list.png) | 设置 →「工作组件」首页：分组列表、行尾状态、「已验证」徽标 |
 
 ## 设置页
 
