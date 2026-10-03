@@ -1,4 +1,4 @@
-# dsh-workbench（工作组件）
+# dsh-work-components（工作组件）
 
 兼容 DeepSeek Harness（DSH）的插件，用来统一挂载和管理「控制其他工作软件」的 MCP 服务器（Office / 创作工具 / Windows 桌面 / Notion / Cloudflare / GitHub / ComfyUI 等）。每个工作组件以 `@deepseek-ai/dsh-mcp-client` 子插件的形式挂载：不写进 profile，随本插件卸载，设置改动后只重挂受影响的组件。
 
@@ -132,7 +132,7 @@ npm run smoke:connect  # 「已连接」实机冒烟（Windows）：node scripts
 npm run smoke:local    # 本地兼容发现 / moduleSource / contribute 清单
 ```
 
-从源码挂进 DSH Desktop：在 `~/.dsh/profiles/desktop` 用 `pnpm add link:<插件目录>`，并在 `dsh.profile.bundles` 加入 `"dsh-workbench"`（若 profile 里曾直接挂同名 mcp-client，先去掉以免重复）。改 bundle 后需重启 Desktop。
+从源码挂进 DSH Desktop：在 `~/.dsh/profiles/desktop` 用 `pnpm add link:<插件目录>`，并在 `dsh.profile.bundles` 加入 `"dsh-work-components"`（若 profile 里曾直接挂同名 mcp-client，先去掉以免重复）。改 bundle 后需重启 Desktop。
 
 
 ## 会话控制（通用）
