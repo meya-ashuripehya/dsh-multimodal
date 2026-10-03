@@ -1,5 +1,5 @@
-# dsh-workbench bundle 层：插入宿主插件行（客户端半边由 package.json 的 dsh.client 声明）。
+# dsh-work-components bundle 层：插入宿主插件行（客户端半边由 package.json 的 dsh.client 声明）。
 - insert:
-    - id: dsh-workbench
-      name: 'dsh-workbench'
+    - id: dsh-work-components
+      name: 'dsh-work-components'
       config: {}

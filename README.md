@@ -32,11 +32,7 @@
 
 ## 实装截图
 
-下列截图展示插件在 DSH 设置里的「工作组件」首页（MCP 全部默认关闭时仍可浏览设置页与组件列表）。图片放在 [`docs/images/`](./docs/images/)；补拍或换图请按 [`docs/images/CAPTURE.md`](./docs/images/CAPTURE.md)。
-
-| 截图 | 说明 |
-| --- | --- |
-| ![工作组件列表](./docs/images/01-settings-workbench-list.png) | 设置 →「工作组件」首页：分组列表、行尾状态、「已验证」徽标 |
+![工作组件列表](https://github.com/meya-ashuripehya/dsh-multimodal/raw/main/docs/images/01-settings-workbench-list.png)
 
 ## 设置页
 
